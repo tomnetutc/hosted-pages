@@ -1,0 +1,1528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>America in Motion: Population & VMT Dashboard 2.0</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy:#0f1e35; --navy2:#162847; --navy3:#1e3560;
+  --accent:#d94f1e; --accent2:#f07848;
+  --teal:#0a7c5c; --teal2:#12a57a;
+  --gold:#b8760a; --gold2:#e09a20;
+  --sky:#1565a8; --sky2:#2d84d4;
+  --purple:#5c3a9e; --purple2:#8258d4;
+  --text:#121a28; --text2:#3d4a5c; --text3:#6b7a90;
+  --border:#d8dce4; --surf:#f5f6f9; --white:#ffffff;
+  --pop1:#1565a8; --pop2:#12a57a; --pop3:#8a3090;
+  --vmt1:#b8760a; --vmt2:#c0392b; --vmt3:#5c3a9e;
+  --radius:10px; --radius-lg:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;color:var(--text);background:#eceef3;min-height:100vh;}
+
+/* HERO */
+.hero{background:linear-gradient(135deg,var(--navy) 0%,var(--navy3) 60%,#1a2f50 100%);color:white;padding:44px 28px 36px;position:relative;overflow:hidden;}
+.hero::before{content:'';position:absolute;right:-60px;top:-60px;width:420px;height:420px;border-radius:50%;background:rgba(255,255,255,.03);pointer-events:none;}
+.hero::after{content:'';position:absolute;right:80px;bottom:-80px;width:260px;height:260px;border-radius:50%;background:rgba(255,255,255,.025);pointer-events:none;}
+.hero-inner{max-width:1100px;margin:0 auto;position:relative;}
+.eyebrow{font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.38);margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.eyebrow-line{flex:1;max-width:40px;height:1px;background:rgba(255,255,255,.18);}
+.hero h1{font-family:'DM Serif Display',serif;font-size:clamp(26px,3.8vw,44px);font-weight:400;line-height:1.15;margin-bottom:14px;max-width:680px;}
+.hero h1 em{font-style:italic;color:var(--accent2);}
+.hero-sub{font-size:15px;color:rgba(255,255,255,.58);max-width:560px;line-height:1.65;margin-bottom:28px;}
+.hero-stats{display:flex;gap:28px;flex-wrap:wrap;}
+.hstat{border-left:2px solid rgba(255,255,255,.15);padding-left:14px;}
+.hstat-val{font-size:22px;font-weight:600;color:white;line-height:1;}
+.hstat-lab{font-size:11px;color:rgba(255,255,255,.4);margin-top:4px;}
+
+/* TABS */
+.tabbar{background:var(--navy2);display:flex;gap:0;overflow-x:auto;position:sticky;top:0;z-index:200;border-bottom:1px solid rgba(255,255,255,.08);}
+.tabbar::-webkit-scrollbar{height:3px;background:transparent;}
+.tabbar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);border-radius:2px;}
+.tbtn{flex:none;height:50px;padding:0 22px;font-size:13px;font-weight:500;color:rgba(255,255,255,.45);background:none;border:none;cursor:pointer;border-bottom:3px solid transparent;transition:all .2s;letter-spacing:.01em;white-space:nowrap;}
+.tbtn:hover:not(.active){color:rgba(255,255,255,.78);}
+.tbtn.active{color:white;border-bottom-color:var(--accent2);}
+.tab-num{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,.1);font-size:10px;margin-right:7px;}
+.tbtn.active .tab-num{background:var(--accent);}
+
+/* LAYOUT */
+.shell{max-width:1100px;margin:0 auto;padding:0 16px 80px;}
+.panel{display:none;}
+.panel.active{display:block;}
+
+/* CARDS */
+.card{background:var(--white);border-radius:var(--radius-lg);border:1px solid var(--border);margin:18px 0;overflow:hidden;}
+.card-head{padding:20px 24px 0;}
+.card-body{padding:20px 24px 24px;}
+.card-title{font-size:16px;font-weight:600;color:var(--navy);margin-bottom:3px;}
+.card-sub{font-size:12px;color:var(--text3);margin-bottom:16px;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+.three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+@media(max-width:700px){.two-col,.three-col{grid-template-columns:1fr;}}
+
+/* CONTROLS */
+.ctrl-bar{background:var(--surf);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;}
+.cg{display:flex;flex-direction:column;gap:5px;}
+.cl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);}
+.ctrl-bar select,.ctrl-bar input[type=text]{height:34px;padding:0 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:white;color:var(--text);min-width:150px;}
+.rrow{display:flex;align-items:center;gap:8px;}
+.rrow input[type=range]{width:130px;}
+.rval{font-size:13px;font-weight:600;color:var(--navy);min-width:38px;}
+.pill-strip{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px;}
+.gpill{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:16px;font-size:12px;font-weight:500;border:1.5px solid;cursor:default;}
+.gpill .rx{cursor:pointer;opacity:.6;font-size:14px;line-height:1;}
+.gpill .rx:hover{opacity:1;}
+.p1{background:#e6f1fb;border-color:var(--sky);color:#0c447c;}
+.p2{background:#eaf3de;border-color:#639922;color:#2d5c0a;}
+.p3{background:#f5eaf9;border-color:var(--purple);color:#3d1f70;}
+.addbtn{height:34px;padding:0 14px;background:var(--navy);color:white;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:500;}
+.addbtn:disabled{opacity:.35;cursor:default;}
+.mapbtn{height:34px;padding:0 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;cursor:pointer;background:white;color:var(--text2);font-weight:500;}
+.mapbtn.active{background:var(--navy);color:white;border-color:var(--navy);}
+
+/* HIGHLIGHTS */
+.hl{border-left:3px solid var(--accent);background:#fdf2ee;border-radius:0 8px 8px 0;padding:12px 16px;margin:10px 0;font-size:13px;line-height:1.6;}
+.hl.teal{border-left-color:var(--teal);background:#e3f5f0;}
+.hl.gold{border-left-color:var(--gold);background:#fdf5e0;}
+.hl.navy{border-left-color:var(--navy);background:#e8edf5;}
+.hl.purple{border-left-color:var(--purple);background:#f0ecfa;}
+.hl-lab{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin-bottom:3px;}
+.hl.teal .hl-lab{color:var(--teal);}
+.hl.gold .hl-lab{color:var(--gold);}
+.hl.navy .hl-lab{color:var(--navy);}
+.hl.purple .hl-lab{color:var(--purple);}
+.hl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:12px 0;}
+
+/* STAT CARDS */
+.scard{background:var(--surf);border-radius:8px;padding:14px 16px;}
+.scard-lab{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px;}
+.scard-val{font-size:20px;font-weight:600;color:var(--navy);}
+.scard-sub{font-size:11px;color:var(--text3);margin-top:2px;}
+
+/* LEGEND */
+.leg-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px;font-size:12px;color:var(--text2);}
+.leg-item{display:flex;align-items:center;gap:5px;}
+.leg-sq{width:10px;height:10px;border-radius:2px;}
+
+/* CHARTS */
+.chart-wrap{position:relative;width:100%;}
+
+/* MAP */
+.map-shell{width:100%;background:var(--surf);border-radius:10px;overflow:hidden;position:relative;}
+.map-legend{position:absolute;bottom:12px;left:16px;background:rgba(255,255,255,.92);border-radius:6px;padding:8px 12px;font-size:11px;color:var(--text2);border:1px solid var(--border);}
+.map-legend-title{font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;color:var(--text3);}
+.map-leg-bar{display:flex;align-items:center;gap:6px;margin-top:4px;}
+.map-leg-grad{width:100px;height:10px;border-radius:3px;}
+.map-leg-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--text3);}
+.map-tooltip{position:absolute;background:var(--navy);color:white;padding:8px 12px;border-radius:8px;font-size:12px;pointer-events:none;display:none;z-index:100;max-width:200px;line-height:1.5;}
+.map-controls{display:flex;gap:6px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--border);background:white;}
+
+/* RATIO section */
+.ratio-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:600;}
+.rb-high{background:#fdf5e0;color:var(--gold);border:1px solid #e8c86a;}
+.rb-mid{background:#e3f5f0;color:var(--teal);border:1px solid #8acfbe;}
+.rb-low{background:#fdf2ee;color:var(--accent);border:1px solid #f5bfaf;}
+
+/* DIVIDER */
+.divider{height:1px;background:var(--border);margin:20px 0;}
+.section-head{font-size:14px;font-weight:600;color:var(--navy2);margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.section-head::after{content:'';flex:1;height:1px;background:var(--border);}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+</style>
+</head>
+<body>
+
+
+<!-- PERMANENT HERO BANNER -->
+<div style="background:linear-gradient(135deg,#0a1628 0%,#0f2348 35%,#162f5e 65%,#1a3a6e 100%);color:white;padding:44px 32px 38px;position:relative;overflow:hidden;">
+  <div style="position:absolute;top:-80px;right:-60px;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle,rgba(100,160,255,.09) 0%,transparent 70%);pointer-events:none;"></div>
+  <div style="position:absolute;bottom:-100px;left:8%;width:580px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(200,90,30,.07) 0%,transparent 70%);pointer-events:none;"></div>
+  <div style="position:absolute;top:20px;right:200px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.03) 0%,transparent 70%);pointer-events:none;"></div>
+  <div style="max-width:1100px;margin:0 auto;position:relative;">
+    <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:30px;padding:5px 16px;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:18px;">
+      <span style="width:6px;height:6px;border-radius:50%;background:#f07848;display:inline-block;animation:hpulse 2s infinite;"></span>
+      Interactive Data Dashboard &nbsp;·&nbsp; Version 6.0
+    </div>
+    <h1 style="font-family:'DM Serif Display',serif;font-size:clamp(26px,3.8vw,46px);font-weight:400;line-height:1.13;margin-bottom:14px;max-width:700px;">
+      America in Motion:<br><em style="font-style:italic;color:#f07848;">Population &amp; Miles Traveled</em><br>
+      <span style="font-size:clamp(18px,2.4vw,28px);color:rgba(255,255,255,.7);font-style:normal;">2010&ndash;2025</span>
+    </h1>
+    <p style="font-size:15px;color:rgba(255,255,255,.55);max-width:580px;line-height:1.7;margin-bottom:32px;">16 years of demographic growth and driving behavior across all 50 states and Washington D.C. &mdash; from pre-pandemic expansion to COVID disruption and the road to recovery.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:16px;">
+      <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.11);border-radius:10px;padding:14px 20px;min-width:110px;">
+        <div style="font-size:24px;font-weight:700;color:white;line-height:1;">342<span style="font-size:13px;font-weight:400;color:rgba(255,255,255,.45);">M</span></div>
+        <div style="font-size:10px;color:rgba(255,255,255,.38);text-transform:uppercase;letter-spacing:.08em;margin-top:3px;">Population 2025</div>
+      </div>
+      <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.11);border-radius:10px;padding:14px 20px;min-width:110px;">
+        <div style="font-size:24px;font-weight:700;color:white;line-height:1;">3.31<span style="font-size:13px;font-weight:400;color:rgba(255,255,255,.45);">T mi</span></div>
+        <div style="font-size:10px;color:rgba(255,255,255,.38);text-transform:uppercase;letter-spacing:.08em;margin-top:3px;">Miles Driven 2025</div>
+      </div>
+      <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.11);border-radius:10px;padding:14px 20px;min-width:110px;">
+        <div style="font-size:24px;font-weight:700;color:white;line-height:1;">+10.5<span style="font-size:13px;font-weight:400;color:rgba(255,255,255,.45);">%</span></div>
+        <div style="font-size:10px;color:rgba(255,255,255,.38);text-transform:uppercase;letter-spacing:.08em;margin-top:3px;">Pop Growth 2010&ndash;25</div>
+      </div>
+      <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.11);border-radius:10px;padding:14px 20px;min-width:110px;">
+        <div style="font-size:24px;font-weight:700;color:white;line-height:1;">+11.6<span style="font-size:13px;font-weight:400;color:rgba(255,255,255,.45);">%</span></div>
+        <div style="font-size:10px;color:rgba(255,255,255,.38);text-transform:uppercase;letter-spacing:.08em;margin-top:3px;">VMT Growth 2010&ndash;25</div>
+      </div>
+      <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.11);border-radius:10px;padding:14px 20px;min-width:110px;">
+        <div style="font-size:24px;font-weight:700;color:white;line-height:1;">51</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.38);text-transform:uppercase;letter-spacing:.08em;margin-top:3px;">Geographies</div>
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+@keyframes hpulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.45;transform:scale(1.5);}}
+</style>
+
+<div class="tabbar">
+  <button class="tbtn active" onclick="switchTab(0)"><span class="tab-num">⌂</span>Home</button>
+  <button class="tbtn" onclick="switchTab(1)"><span class="tab-num">1</span>Trends &amp; Indexed</button>
+  <button class="tbtn" onclick="switchTab(2)"><span class="tab-num">2</span>Per Capita</button>
+  <button class="tbtn" onclick="switchTab(3)"><span class="tab-num">3</span>State Comparison</button>
+  <button class="tbtn" onclick="switchTab(4)"><span class="tab-num">4</span>Scatter Plot</button>
+  <button class="tbtn" onclick="switchTab(5)" style="margin-left:auto"><span class="tab-num" style="background:rgba(255,255,255,.15)">ℹ</span>About</button>
+</div>
+
+<div class="shell">
+
+<!-- ====== TAB 0: HOME ====== -->
+<div class="panel active" id="p0">
+
+<style>
+/* home-hero styles removed */
+
+.tab-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin:24px 0 0;}
+.tab-card{background:white;border-radius:14px;border:1px solid var(--border);padding:24px;cursor:pointer;transition:transform .18s,box-shadow .18s,border-color .18s;position:relative;overflow:hidden;}
+.tab-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:14px 14px 0 0;}
+.tc1::before{background:linear-gradient(90deg,#1565a8,#2d84d4);}
+.tc2::before{background:linear-gradient(90deg,#b8760a,#e09a20);}
+.tc3::before{background:linear-gradient(90deg,#0a7c5c,#12a57a);}
+.tc4::before{background:linear-gradient(90deg,#5c3a9e,#8258d4);}
+.tab-card:hover{transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,0,0,.12);border-color:transparent;}
+.tc-icon{font-size:26px;margin-bottom:12px;}
+.tc-num{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font-size:11px;font-weight:700;color:white;margin-bottom:12px;}
+.tc1 .tc-num{background:#1565a8;}
+.tc2 .tc-num{background:#b8760a;}
+.tc3 .tc-num{background:#0a7c5c;}
+.tc4 .tc-num{background:#5c3a9e;}
+.tc-title{font-size:15px;font-weight:600;color:var(--navy);margin-bottom:7px;}
+.tc-desc{font-size:13px;color:var(--text3);line-height:1.65;}
+.tc-arrow{position:absolute;bottom:18px;right:18px;font-size:16px;color:var(--border);transition:color .18s,transform .18s;}
+.tab-card:hover .tc-arrow{color:var(--navy);transform:translateX(3px);}
+
+.how-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin:16px 0;}
+.how-step{background:var(--surf);border-radius:10px;padding:16px 18px;border-left:3px solid var(--border);}
+.how-step.s1{border-left-color:#1565a8;}
+.how-step.s2{border-left-color:#b8760a;}
+.how-step.s3{border-left-color:#0a7c5c;}
+.how-step.s4{border-left-color:#5c3a9e;}
+.how-n{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);margin-bottom:4px;}
+.how-t{font-size:13px;font-weight:600;color:var(--navy);margin-bottom:4px;}
+.how-d{font-size:12px;color:var(--text3);line-height:1.55;}
+
+.sponsor-bar{background:linear-gradient(135deg,#0a1628,#162340);border-radius:14px;padding:28px 32px;margin:24px 0 0;display:flex;align-items:center;gap:28px;flex-wrap:wrap;}
+.sponsor-logo{width:56px;height:56px;background:rgba(255,255,255,.08);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;border:1px solid rgba(255,255,255,.12);}
+.sponsor-text{flex:1;min-width:200px;}
+.sponsor-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.38);margin-bottom:5px;}
+.sponsor-name{font-size:15px;font-weight:600;color:white;line-height:1.4;margin-bottom:4px;}
+.sponsor-sub{font-size:12px;color:rgba(255,255,255,.45);line-height:1.5;}
+.sponsor-link{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:6px 14px;font-size:12px;color:rgba(255,255,255,.7);text-decoration:none;font-weight:500;transition:background .15s;}
+.sponsor-link:hover{background:rgba(255,255,255,.15);}
+</style>
+
+  <!-- Dashboard description section (replaces duplicate hero) -->
+  <div style="margin:24px 0 0">
+    <div style="background:white;border-radius:16px;border:1px solid var(--border);padding:36px 40px;">
+
+      <div style="display:flex;align-items:flex-start;gap:32px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:260px;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:var(--text3);margin-bottom:10px;">About This Dashboard</div>
+          <h2 style="font-family:'DM Serif Display',serif;font-size:clamp(20px,2.8vw,30px);color:var(--navy);line-height:1.2;margin-bottom:16px;font-weight:400;">Understanding How America Grows &amp; Moves</h2>
+          <p style="font-size:14px;color:var(--text2);line-height:1.8;margin-bottom:14px;">
+            Population growth and vehicle travel are two of the most fundamental indicators of how a society expands and evolves. As states grow &mdash; or shrink &mdash; their transportation systems must respond. Yet the relationship between how many people live somewhere and how much those people drive is far from simple. It varies by geography, by era, and by economic circumstance.
+          </p>
+          <p style="font-size:14px;color:var(--text2);line-height:1.8;margin-bottom:14px;">
+            This dashboard brings together 16 years of annual data &mdash; from 2010 through 2025 &mdash; on population estimates and vehicle miles traveled (VMT) for all 50 U.S. states and Washington D.C. It is designed to help researchers, planners, policymakers, and curious citizens explore how these two measures have changed over time, how they compare across states, and where driving has grown faster or slower than population.
+          </p>
+          <p style="font-size:14px;color:var(--text2);line-height:1.8;">
+            The period covered spans a remarkable range of conditions: the slow recovery from the 2008 financial crisis, a sustained economic expansion through the mid-2010s, the sharp COVID-19 disruption of 2020 that caused a historic single-year plunge in VMT, and the subsequent rebound through 2025. Together, these years tell a rich and nuanced story about mobility in America.
+          </p>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:12px;min-width:200px;">
+          <div style="background:var(--surf);border-radius:12px;padding:18px 22px;border-left:3px solid var(--sky);">
+            <div style="font-size:28px;font-weight:700;color:var(--navy);line-height:1;">342M</div>
+            <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-top:3px;">U.S. Population, 2025</div>
+          </div>
+          <div style="background:var(--surf);border-radius:12px;padding:18px 22px;border-left:3px solid var(--gold);">
+            <div style="font-size:28px;font-weight:700;color:var(--navy);line-height:1;">3.31T</div>
+            <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-top:3px;">Vehicle Miles Traveled, 2025</div>
+          </div>
+          <div style="background:var(--surf);border-radius:12px;padding:18px 22px;border-left:3px solid var(--teal);">
+            <div style="font-size:28px;font-weight:700;color:var(--navy);line-height:1;">+10.5%</div>
+            <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-top:3px;">Population Growth, 2010&ndash;2025</div>
+          </div>
+          <div style="background:var(--surf);border-radius:12px;padding:18px 22px;border-left:3px solid var(--purple);">
+            <div style="font-size:28px;font-weight:700;color:var(--navy);line-height:1;">+11.6%</div>
+            <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-top:3px;">VMT Growth, 2010&ndash;2025</div>
+          </div>
+          <div style="background:var(--surf);border-radius:12px;padding:12px 22px;text-align:center;">
+            <div style="font-size:11px;color:var(--text3);line-height:1.6;">50 states + D.C. &nbsp;·&nbsp; 16 years<br>Annual data, 2010&ndash;2025</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="height:1px;background:var(--border);margin:28px 0;"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--text3);">
+        <span style="display:flex;align-items:center;gap:6px;background:var(--surf);padding:6px 14px;border-radius:20px;border:1px solid var(--border);">&#128202; U.S. Census Bureau &mdash; Population Estimates Program (Vintage 2019 &amp; NST-EST2025)</span>
+        <span style="display:flex;align-items:center;gap:6px;background:var(--surf);padding:6px 14px;border-radius:20px;border:1px solid var(--border);">&#128663; FHWA Highway Statistics &mdash; Table VM-2 (Annual VMT by State)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab Cards -->
+  <div class="card" style="margin-top:20px">
+    <div class="card-head">
+      <div class="card-title">Explore the Dashboard</div>
+      <div class="card-sub">Click any tab below to jump straight to that section.</div>
+    </div>
+    <div class="card-body">
+      <div class="tab-cards">
+
+        <div class="tab-card tc1" onclick="switchTab(1)">
+          <div class="tc-num">1</div>
+          <div class="tc-title">Trends &amp; Indexed Growth</div>
+          <div class="tc-desc">Select up to 3 states or the nation and explore raw population and VMT trends on a dual-axis chart. Switch to the indexed view to see relative growth normalized to 1.0 at any base year. An interactive U.S. map lets you visualize population or VMT levels for any year with zoom and pan.</div>
+          <div class="tc-arrow">&#8594;</div>
+        </div>
+
+        <div class="tab-card tc2" onclick="switchTab(2)">
+          <div class="tc-num">2</div>
+          <div class="tc-title">Per Capita Analysis</div>
+          <div class="tc-desc">Dive into VMT per capita &mdash; miles driven per person per year &mdash; and compare it against population growth. The indexed view reveals whether Americans are driving more or less per person over time. An interactive map color-codes states by VMT per capita or population level for any chosen year.</div>
+          <div class="tc-arrow">&#8594;</div>
+        </div>
+
+        <div class="tab-card tc3" onclick="switchTab(3)">
+          <div class="tc-num">3</div>
+          <div class="tc-title">State Comparison</div>
+          <div class="tc-desc">Compare all 50 states and D.C. side by side with a horizontal bar chart showing % change in population, VMT, and VMT per capita over your chosen year range. Sort, filter, and hover for precise values. A choropleth map below lets you visualize which metric changed most across the country.</div>
+          <div class="tc-arrow">&#8594;</div>
+        </div>
+
+        <div class="tab-card tc4" onclick="switchTab(4)">
+          <div class="tc-num">4</div>
+          <div class="tc-title">Scatter Plot &amp; Quadrant Map</div>
+          <div class="tc-desc">A rich scatter plot places every state by its VMT % change (Y-axis) vs. population % change (X-axis). States where both metrics declined are Black; pop up/VMT down are Green; pop down/VMT up are Red. For states where both grew, four sub-categories (Blue, Brown, Purple, Orange) are determined by whether each state exceeds the median growth rate within that subset. The choropleth map mirrors these seven colors.</div>
+          <div class="tc-arrow">&#8594;</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- How to use -->
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">How to Use This Dashboard</div>
+      <div class="card-sub">A quick guide to getting the most from the interactive features.</div>
+    </div>
+    <div class="card-body">
+      <div class="how-grid">
+        <div class="how-step s1">
+          <div class="how-n">Step 1</div>
+          <div class="how-t">Choose your year range</div>
+          <div class="how-d">Every analytical tab has dual sliders letting you set a custom start and end year from 2010 to 2025. All charts and maps update instantly.</div>
+        </div>
+        <div class="how-step s2">
+          <div class="how-n">Step 2</div>
+          <div class="how-t">Select geographies</div>
+          <div class="how-d">In Tabs 1 and 2, add up to 3 states, D.C., or the U.S. total to compare their trends simultaneously on the same chart.</div>
+        </div>
+        <div class="how-step s3">
+          <div class="how-n">Step 3</div>
+          <div class="how-t">Explore the maps</div>
+          <div class="how-d">All maps support scroll-to-zoom, click-and-drag panning, and double-click zoom. Hover over any state for a tooltip with precise values. Use the Reset button to return to full view.</div>
+        </div>
+        <div class="how-step s4">
+          <div class="how-n">Step 4</div>
+          <div class="how-t">Hover for details</div>
+          <div class="how-d">In the bar chart and scatter plot, hover over any bar or dot to see a detailed callout with the state name and all relevant statistics for that geography.</div>
+        </div>
+      </div>
+      <div class="hl navy" style="margin-top:16px">
+        <div class="hl-lab">2020 COVID Note</div>
+        All data includes the year 2020. VMT dropped approximately 13% nationally due to COVID-19 pandemic travel restrictions while population remained relatively stable. This creates a visible V-shaped dip in VMT trend lines for that year across nearly every state.
+      </div>
+    </div>
+  </div>
+
+  <!-- Sponsor -->
+  <div class="sponsor-bar">
+    <div class="sponsor-logo">&#127979;</div>
+    <div class="sponsor-text">
+      <div class="sponsor-label">Sponsored by</div>
+      <div class="sponsor-name">National University Transportation Center for Understanding<br>the Future of Travel Behavior and Demand</div>
+      <div class="sponsor-sub">Supporting research into how Americans move &mdash; today and tomorrow &mdash; through data, analysis, and innovation.</div>
+    </div>
+    <a href="https://tbd.ctr.utexas.edu/" target="_blank" class="sponsor-link">&#128279; Visit Center Website</a>
+  </div>
+
+  <!-- Footer -->
+  <div style="text-align:center;padding:28px 0 4px;font-size:12px;color:var(--text3);line-height:2;">
+    <strong>America in Motion</strong> &nbsp;&#183;&nbsp; Version 6.0 &nbsp;&#183;&nbsp; Created by Ram Pendyala &nbsp;&#183;&nbsp; Built with Claude AI (Anthropic)<br>
+    Data: U.S. Census Bureau &amp; FHWA Highway Statistics &nbsp;&#183;&nbsp; 2010&ndash;2025
+  </div>
+
+</div><!-- end Home panel -->
+
+<!-- ====== TAB 1: TRENDS & INDEXED ====== -->
+<div class="panel" id="p1">
+
+  <div class="card">
+    <div class="ctrl-bar">
+      <div class="cg">
+        <div class="cl">Year range</div>
+        <div class="rrow">
+          <span style="font-size:12px;color:var(--text3)">From</span>
+          <input type="range" id="t1s" min="0" max="15" value="0" oninput="syncRange(0)">
+          <span class="rval" id="t1sl">2010</span>
+          <span style="font-size:12px;color:var(--text3)">To</span>
+          <input type="range" id="t1e" min="0" max="15" value="15" oninput="syncRange(0)">
+          <span class="rval" id="t1el">2025</span>
+        </div>
+      </div>
+      <div class="cg">
+        <div class="cl">Add geography (max 3)</div>
+        <div style="display:flex;gap:6px">
+          <select id="t1geo"><option value="">— select —</option></select>
+          <button class="addbtn" id="t1add" onclick="addGeo(0)">+ Add</button>
+        </div>
+      </div>
+      <div class="cg">
+        <div class="cl">Selected</div>
+        <div class="pill-strip" id="t1pills"></div>
+      </div>
+    </div>
+
+    <div class="card-body">
+      <div class="section-head">Raw Trends — Dual Axis</div>
+      <div class="card-sub">Solid lines = Population (left axis) &nbsp;·&nbsp; Dashed lines = VMT in millions (right axis)</div>
+      <div class="leg-row" id="t1leg"></div>
+      <div class="chart-wrap" style="height:320px"><canvas id="c1raw" role="img" aria-label="Dual axis trend chart for population and VMT.">Trend chart.</canvas></div>
+      <div id="t1hl" style="margin-top:16px"></div>
+
+      <div class="divider"></div>
+      <div class="section-head">Indexed Growth (Base Year = 1.0)</div>
+      <div class="card-sub">Both population (solid) and VMT (dashed) normalized to 1.0 at the start of the selected year range.</div>
+      <div class="chart-wrap" style="height:300px"><canvas id="c1idx" role="img" aria-label="Indexed growth chart normalized to 1.0 at base year.">Indexed chart.</canvas></div>
+      <div id="t1idxhl" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="map-controls">
+      <div class="cl" style="width:100%;margin-bottom:6px">Map: color states by —</div>
+      <button class="mapbtn active" id="m1b0" onclick="setMapMode(1,0)">Population Level</button>
+      <button class="mapbtn" id="m1b1" onclick="setMapMode(1,1)">VMT Level</button>
+      <div class="cg" style="margin-left:auto">
+        <div class="cl">Year shown</div>
+        <div class="rrow">
+          <input type="range" id="m1yr" min="0" max="15" value="15" oninput="renderMap(1)">
+          <span class="rval" id="m1yrl">2025</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body" style="padding-top:12px">
+      <div id="map1" class="map-shell" style="height:480px">
+        <div class="map-tooltip" id="tt1"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ====== TAB 2: PER CAPITA ====== -->
+<div class="panel" id="p2">
+
+  <div class="card">
+    <div class="ctrl-bar">
+      <div class="cg">
+        <div class="cl">Year range</div>
+        <div class="rrow">
+          <span style="font-size:12px;color:var(--text3)">From</span>
+          <input type="range" id="t2s" min="0" max="15" value="0" oninput="syncRange(1)">
+          <span class="rval" id="t2sl">2010</span>
+          <span style="font-size:12px;color:var(--text3)">To</span>
+          <input type="range" id="t2e" min="0" max="15" value="15" oninput="syncRange(1)">
+          <span class="rval" id="t2el">2025</span>
+        </div>
+      </div>
+      <div class="cg">
+        <div class="cl">Add geography (max 3)</div>
+        <div style="display:flex;gap:6px">
+          <select id="t2geo"><option value="">— select —</option></select>
+          <button class="addbtn" id="t2add" onclick="addGeo(1)">+ Add</button>
+        </div>
+      </div>
+      <div class="cg">
+        <div class="cl">Selected</div>
+        <div class="pill-strip" id="t2pills"></div>
+      </div>
+    </div>
+
+    <div class="card-body">
+      <div class="section-head">VMT Per Capita &amp; Population — Raw Trends</div>
+      <div class="card-sub">Solid lines = VMT per capita in miles/person (left axis) &nbsp;·&nbsp; Dashed lines = Population (right axis)</div>
+      <div class="leg-row" id="t2leg"></div>
+      <div class="chart-wrap" style="height:320px"><canvas id="c2raw" role="img" aria-label="Per capita VMT and population dual axis chart.">Per capita chart.</canvas></div>
+      <div id="t2hl" style="margin-top:16px"></div>
+
+      <div class="divider"></div>
+      <div class="section-head">Indexed Per Capita Growth (Base Year = 1.0)</div>
+      <div class="card-sub">VMT per capita (solid) and population (dashed) both indexed to 1.0 at the selected start year.</div>
+      <div class="chart-wrap" style="height:300px"><canvas id="c2idx" role="img" aria-label="Indexed per capita growth chart.">Indexed per capita chart.</canvas></div>
+      <div id="t2idxhl" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="map-controls">
+      <div class="cl" style="width:100%;margin-bottom:6px">Map: color states by —</div>
+      <button class="mapbtn active" id="m2b0" onclick="setMapMode(2,0)">VMT Per Capita</button>
+      <button class="mapbtn" id="m2b1" onclick="setMapMode(2,1)">Population Level</button>
+      <div class="cg" style="margin-left:auto">
+        <div class="cl">Year shown</div>
+        <div class="rrow">
+          <input type="range" id="m2yr" min="0" max="15" value="15" oninput="renderMap(2)">
+          <span class="rval" id="m2yrl">2025</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body" style="padding-top:12px">
+      <div id="map2" class="map-shell" style="height:480px">
+        <div class="map-tooltip" id="tt2"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ====== TAB 3: STATE COMPARISON ====== -->
+<div class="panel" id="p3">
+
+  <div class="card">
+    <div class="ctrl-bar">
+      <div class="cg">
+        <div class="cl">Year range</div>
+        <div class="rrow">
+          <span style="font-size:12px;color:var(--text3)">From</span>
+          <input type="range" id="t3s" min="0" max="15" value="0" oninput="syncRange(2)">
+          <span class="rval" id="t3sl">2010</span>
+          <span style="font-size:12px;color:var(--text3)">To</span>
+          <input type="range" id="t3e" min="0" max="15" value="15" oninput="syncRange(2)">
+          <span class="rval" id="t3el">2025</span>
+        </div>
+      </div>
+      <div class="cg">
+        <div class="cl">Sort by</div>
+        <select id="t3sort" onchange="renderTab3()">
+          <option value="pop">Population % change</option>
+          <option value="vmt">VMT % change</option>
+          <option value="vmtpc">VMT per capita % change</option>
+          <option value="alpha">Alphabetical</option>
+        </select>
+      </div>
+      <div class="cg">
+        <div class="cl">Filter</div>
+        <select id="t3filt" onchange="renderTab3()">
+          <option value="all">All 51 (states + D.C.)</option>
+          <option value="top15pop">Top 15 — population</option>
+          <option value="bot15pop">Bottom 15 — population</option>
+          <option value="top15vmt">Top 15 — VMT growth</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card-body">
+      <div id="t3hl" class="hl-grid" style="margin-bottom:16px"></div>
+      <div class="section-head">% Change by State</div>
+
+      <!-- Metric checkboxes -->
+      <div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:16px;padding:12px 16px;background:var(--surf);border-radius:10px;border:1px solid var(--border);align-items:center;">
+        <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);margin-right:4px;">Show metrics:</span>
+        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;font-weight:500;color:#0c447c;user-select:none;">
+          <input type="checkbox" id="chk_pop" checked onchange="renderTab3()"
+            style="width:16px;height:16px;accent-color:#1565a8;cursor:pointer;">
+          <span style="width:10px;height:10px;border-radius:2px;background:#1565a8;display:inline-block;flex-shrink:0"></span>
+          Population % Δ
+        </label>
+        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;font-weight:500;color:#7a4e00;user-select:none;">
+          <input type="checkbox" id="chk_vmt" checked onchange="renderTab3()"
+            style="width:16px;height:16px;accent-color:#b8760a;cursor:pointer;">
+          <span style="width:10px;height:10px;border-radius:2px;background:#b8760a;display:inline-block;flex-shrink:0"></span>
+          VMT % Δ
+        </label>
+        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;font-weight:500;color:#055240;user-select:none;">
+          <input type="checkbox" id="chk_vpc" checked onchange="renderTab3()"
+            style="width:16px;height:16px;accent-color:#0a7c5c;cursor:pointer;">
+          <span style="width:10px;height:10px;border-radius:2px;background:#0a7c5c;display:inline-block;flex-shrink:0"></span>
+          VMT per capita % Δ
+        </label>
+        <span id="t3_metric_note" style="margin-left:auto;font-size:11px;color:var(--text3);font-style:italic;"></span>
+      </div>
+
+      <div class="chart-wrap" id="t3barwrap" style="height:1800px"><canvas id="c3bar" role="img" aria-label="Horizontal bar chart of percent change by state.">State comparison chart.</canvas></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="map-controls">
+      <div class="cl" style="width:100%;margin-bottom:6px">Map: color states by % change in —</div>
+      <button class="mapbtn active" id="m3b0" onclick="setMapMode(3,0)">Population % Δ</button>
+      <button class="mapbtn" id="m3b1" onclick="setMapMode(3,1)">VMT % Δ</button>
+      <button class="mapbtn" id="m3b2" onclick="setMapMode(3,2)">VMT Per Capita % Δ</button>
+    </div>
+    <div class="card-body" style="padding-top:12px">
+      <div id="map3" class="map-shell" style="height:480px">
+        <div class="map-tooltip" id="tt3"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ====== TAB 4: SCATTER PLOT ====== -->
+<div class="panel" id="p4">
+
+  <div class="card">
+    <div class="ctrl-bar">
+      <div class="cg">
+        <div class="cl">Year range</div>
+        <div class="rrow">
+          <span style="font-size:12px;color:var(--text3)">From</span>
+          <input type="range" id="t4s" min="0" max="15" value="0" oninput="syncRange(3)">
+          <span class="rval" id="t4sl">2010</span>
+          <span style="font-size:12px;color:var(--text3)">To</span>
+          <input type="range" id="t4e" min="0" max="15" value="15" oninput="syncRange(3)">
+          <span class="rval" id="t4el">2025</span>
+        </div>
+      </div>
+      <div class="cg">
+        <div class="cl">Filter</div>
+        <select id="t4filt" onchange="renderTab4()">
+          <option value="all">All 51 states + D.C.</option>
+          <option value="top15vmt">Top 15 — VMT % growth</option>
+          <option value="top15pop">Top 15 — Population % growth</option>
+          <option value="bot15pop">Bottom 15 — Population % growth</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card-body">
+      <div class="section-head">VMT % Change vs. Population % Change</div>
+      <div class="card-sub">Each dot is a state. X-axis = population % change · Y-axis = VMT % change · Quadrant colors show the growth story for each state.</div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:7px;margin-bottom:16px;font-size:12px;">
+        <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:50%;background:#27ae60;display:inline-block;flex-shrink:0"></span><strong style="color:#1a6e38">Green</strong>&nbsp;— Pop ↑ / VMT ↓</span>
+        <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:50%;background:#c0392b;display:inline-block;flex-shrink:0"></span><strong style="color:#8b1a1a">Red</strong>&nbsp;— Pop ↓ / VMT ↑</span>
+        <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:50%;background:#222;display:inline-block;flex-shrink:0"></span><strong>Black</strong>&nbsp;— Both declining</span>
+        <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:50%;background:#1565a8;display:inline-block;flex-shrink:0"></span><strong style="color:#0c447c">Blue</strong>&nbsp;— Both high-growth (above medians)</span>
+        <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:50%;background:#8B4513;display:inline-block;flex-shrink:0"></span><strong style="color:#5a2a00">Brown</strong>&nbsp;— VMT high / Pop moderate (above VMT median only)</span>
+        <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:50%;background:#7b2d9e;display:inline-block;flex-shrink:0"></span><strong style="color:#4a1870">Purple</strong>&nbsp;— Pop high / VMT moderate (above Pop median only)</span>
+        <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:50%;background:#e67e22;display:inline-block;flex-shrink:0"></span><strong style="color:#a04e00">Orange</strong>&nbsp;— Both moderate-growth (below both medians)</span>
+      </div>
+      <div style="font-size:11px;color:var(--text3);background:var(--surf);border-radius:6px;padding:7px 12px;margin-bottom:14px;">&#8505; Blue/Brown/Purple/Orange apply only to states where <em>both</em> population and VMT grew positively. Medians are computed from that subset and shown in the highlight boxes below.</div>
+
+      <div id="t4hl" class="hl-grid" style="margin-bottom:16px"></div>
+      <div class="chart-wrap" style="height:500px;position:relative;">
+        <canvas id="c4scatter" role="img" aria-label="Scatter plot of VMT percent change vs population percent change by state.">Scatter plot.</canvas>
+        <div id="scattertt" style="position:fixed;background:#0f1e35;color:white;padding:10px 14px;border-radius:8px;font-size:12px;pointer-events:none;display:none;z-index:9999;line-height:1.8;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35);"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body" style="padding-top:20px">
+      <div class="section-head">Quadrant Map — States Colored by Scatter Plot Quadrant</div>
+      <div class="card-sub">Green = pop&#8593;/VMT&#8595; &nbsp;·&nbsp; Red = pop&#8595;/VMT&#8593; &nbsp;·&nbsp; Black = both declining &nbsp;·&nbsp; Blue/Brown/Purple/Orange = both growing (split by medians)</div>
+      <div id="map4" class="map-shell" style="height:480px">
+        <div class="map-tooltip" id="tt4"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+<!-- ====== TAB 5: ABOUT ====== -->
+<div class="panel" id="p5">
+
+  <div class="card" style="margin-top:24px">
+    <div class="card-body" style="padding:36px">
+      <div style="display:flex;align-items:flex-start;gap:28px;flex-wrap:wrap">
+        <div style="width:88px;height:88px;border-radius:50%;background:linear-gradient(135deg,var(--navy) 0%,var(--sky) 100%);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:32px;font-weight:700;color:white;letter-spacing:-1px">RP</div>
+        <div style="flex:1;min-width:220px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--text3);margin-bottom:6px">Created by</div>
+          <div style="font-family:'DM Serif Display',serif;font-size:30px;color:var(--navy);line-height:1.1;margin-bottom:8px">Ram Pendyala</div>
+          <div style="font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:14px">Professor and transportation researcher with a passion for data-driven insight into how people and goods move across America. This dashboard represents a synthesis of 15 years of national mobility and demographic data, assembled to make complex trends accessible and explorable by anyone.</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <span style="display:inline-flex;align-items:center;gap:6px;background:var(--surf);border:1px solid var(--border);border-radius:20px;padding:5px 14px;font-size:12px;color:var(--text2)">&#127891; Transportation Research</span>
+            <span style="display:inline-flex;align-items:center;gap:6px;background:var(--surf);border:1px solid var(--border);border-radius:20px;padding:5px 14px;font-size:12px;color:var(--text2)">&#128202; Data Visualization</span>
+            <span style="display:inline-flex;align-items:center;gap:6px;background:var(--surf);border:1px solid var(--border);border-radius:20px;padding:5px 14px;font-size:12px;color:var(--text2)">&#128506; Mobility &amp; Demographics</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body" style="padding:32px">
+      <div style="display:flex;align-items:flex-start;gap:22px;flex-wrap:wrap">
+        <div style="width:64px;height:64px;border-radius:14px;background:linear-gradient(135deg,#d94f1e 0%,#f07848 100%);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:28px">&#129302;</div>
+        <div style="flex:1;min-width:220px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--text3);margin-bottom:6px">Built with</div>
+          <div style="font-family:'DM Serif Display',serif;font-size:24px;color:var(--navy);margin-bottom:10px">Claude AI by Anthropic</div>
+          <div style="font-size:14px;color:var(--text2);line-height:1.7;margin-bottom:16px">This entire dashboard &mdash; from data assembly to interactive visualization &mdash; was conceived and constructed through a collaborative conversation with <strong>Claude</strong> (Anthropic&apos;s AI assistant). Claude retrieved population data from the U.S. Census Bureau and VMT data directly from the FHWA website, compiled both into structured Excel spreadsheets, and then designed and coded this full interactive HTML dashboard with D3.js maps, Chart.js visualizations, multi-geography selectors, indexed trend charts, zoom-and-pan maps, and state comparison tools. All four analytical tabs, the choropleth maps, the per capita calculations, and the ratio analysis were generated entirely through natural language dialogue &mdash; no manual coding required.</div>
+          <div style="background:linear-gradient(135deg,#fdf2ee,#fff8f5);border:1px solid #f5cbb8;border-radius:10px;padding:16px 20px;font-size:13px;color:var(--text2);line-height:1.7;font-style:italic">
+            &ldquo;I am beyond amazed at what Claude was able to put together. The depth of data retrieval, the quality of the visualizations, and the interactivity of this dashboard exceeded every expectation. Claude absolutely deserves a huge amount of credit for this work.&rdquo;
+            <div style="margin-top:8px;font-style:normal;font-size:12px;font-weight:600;color:var(--accent)">&mdash; Ram Pendyala</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">About This Dashboard</div></div>
+    <div class="card-body">
+      <div style="font-size:14px;color:var(--text2);line-height:1.8;margin-bottom:20px"><strong>America in Motion</strong> is an interactive data brief exploring 16 years of population change and vehicle miles traveled (VMT) across all 50 U.S. states and Washington D.C., from 2010 through 2025. The dashboard is designed to make it easy to explore national and state-level trends, compare geographies side by side, examine per capita driving behavior, and understand how population growth and driving have diverged or converged over time.</div>
+      <div class="divider"></div>
+      <div class="section-head" style="margin-top:16px">What&apos;s Inside</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin:14px 0 20px">
+        <div style="background:var(--surf);border-radius:10px;padding:16px;border-left:3px solid var(--sky)">
+          <div style="font-weight:600;color:var(--navy);margin-bottom:5px;font-size:13px">Tab 1 &mdash; Trends &amp; Indexed</div>
+          <div style="font-size:12px;color:var(--text3);line-height:1.6">Raw dual-axis trends and base-year-indexed growth for population and VMT for up to 3 geographies simultaneously. Interactive U.S. map with year slider, zoom and pan.</div>
+        </div>
+        <div style="background:var(--surf);border-radius:10px;padding:16px;border-left:3px solid var(--gold)">
+          <div style="font-weight:600;color:var(--navy);margin-bottom:5px;font-size:13px">Tab 2 &mdash; Per Capita</div>
+          <div style="font-size:12px;color:var(--text3);line-height:1.6">VMT per capita (miles driven per person per year) and indexed per capita trends. Reveals whether Americans are driving more or less per person over time.</div>
+        </div>
+        <div style="background:var(--surf);border-radius:10px;padding:16px;border-left:3px solid var(--teal)">
+          <div style="font-weight:600;color:var(--navy);margin-bottom:5px;font-size:13px">Tab 3 &mdash; State Comparison</div>
+          <div style="font-size:12px;color:var(--text3);line-height:1.6">All-state bar chart comparing % change in population, VMT, and VMT per capita over any chosen year range. Sortable and filterable, with a zoomable choropleth map.</div>
+        </div>
+        <div style="background:var(--surf);border-radius:10px;padding:16px;border-left:3px solid var(--purple)">
+          <div style="font-weight:600;color:var(--navy);margin-bottom:5px;font-size:13px">Tab 4 &mdash; Scatter Plot</div>
+          <div style="font-size:12px;color:var(--text3);line-height:1.6">A scatter plot of VMT % change (Y) vs. population % change (X) for all states. Each dot is color-coded by quadrant &mdash; showing at a glance whether a state has growing or declining population and VMT. A matching choropleth map colors states by their quadrant.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">Data Sources &amp; Downloads</div></div>
+    <div class="card-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px" class="two-col">
+
+        <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">
+          <div style="background:linear-gradient(135deg,var(--navy),var(--sky));padding:16px 20px;color:white">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;opacity:.6;margin-bottom:4px">Data Source 1</div>
+            <div style="font-size:16px;font-weight:600">U.S. Population Estimates</div>
+            <div style="font-size:12px;opacity:.7;margin-top:3px">U.S. Census Bureau &mdash; Population Estimates Program</div>
+          </div>
+          <div style="padding:18px 20px">
+            <div style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:12px">Annual resident population estimates for all 50 states and D.C., July 1 of each year. Combines the Census Bureau Vintage 2019 series (2010&ndash;2019) and NST-EST2025 series (2020&ndash;2025).</div>
+            <div style="font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.8">
+              <strong>Coverage:</strong> 50 states + D.C. + U.S. total<br>
+              <strong>Years:</strong> 2010&ndash;2025 (annual, July 1)<br>
+              <strong>Series:</strong> Vintage 2019 &amp; NST-EST2025<br>
+              <strong>Publisher:</strong> U.S. Census Bureau
+            </div>
+            <div style="margin-bottom:10px">
+              <a href="https://www.census.gov/programs-surveys/popest/data/tables.html" target="_blank" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--sky);text-decoration:none;font-weight:500">&#128279; Census Bureau Population Estimates</a>
+            </div>
+            <a id="dl-pop" href="#" style="display:inline-flex;align-items:center;gap:7px;background:var(--sky);color:white;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:500;text-decoration:none;cursor:pointer" onclick="downloadExcel('pop')">
+              &#11015; Download Population Data (.csv)
+            </a>
+          </div>
+        </div>
+
+        <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">
+          <div style="background:linear-gradient(135deg,#5a2e00,var(--gold));padding:16px 20px;color:white">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;opacity:.6;margin-bottom:4px">Data Source 2</div>
+            <div style="font-size:16px;font-weight:600">Vehicle Miles Traveled</div>
+            <div style="font-size:12px;opacity:.7;margin-top:3px">FHWA Highway Statistics &mdash; Table VM-2</div>
+          </div>
+          <div style="padding:18px 20px">
+            <div style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:12px">Annual VMT in millions for all roads and streets by state. From the FHWA Highway Statistics series, Table VM-2. Values for 2022&ndash;2024 from FHWA Highway Statistics; 2025 data provided by Steve Polzin from FHWA Traffic Volume Trends (January 2026 release). Idaho value corrected to 20,704M miles based on regional subtotal.</div>
+            <div style="font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.8">
+              <strong>Coverage:</strong> 50 states + D.C. + U.S. total<br>
+              <strong>Years:</strong> 2010&ndash;2025 (annual totals)<br>
+              <strong>Units:</strong> Millions of vehicle miles<br>
+              <strong>Publisher:</strong> Federal Highway Administration
+            </div>
+            <div style="margin-bottom:10px">
+              <a href="https://www.fhwa.dot.gov/policyinformation/statistics.cfm" target="_blank" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--gold);text-decoration:none;font-weight:500">&#128279; FHWA Highway Statistics</a>
+            </div>
+            <a id="dl-vmt" href="#" style="display:inline-flex;align-items:center;gap:7px;background:var(--gold);color:white;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:500;text-decoration:none;cursor:pointer" onclick="downloadExcel('vmt')">
+              &#11015; Download VMT Data (.csv)
+            </a>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="hl navy" style="margin-top:20px">
+        <div class="hl-lab">Data Notes</div>
+        Population figures are July 1 annual estimates and may be revised by the Census Bureau in subsequent vintages. VMT data reflects total annual travel on all public roads and streets. The year 2020 reflects significant COVID-19 pandemic effects &mdash; VMT dropped approximately 13% nationally while population remained relatively stable. FHWA periodically revises prior-year estimates; values may differ slightly from older publications.
+      </div>
+    </div>
+  </div>
+
+  <div style="text-align:center;padding:28px 0 8px;font-size:12px;color:var(--text3);line-height:1.8">
+    <strong>America in Motion</strong> &nbsp;&#183;&nbsp; Version 6.0 &nbsp;&#183;&nbsp; Created by Ram Pendyala &nbsp;&#183;&nbsp; Built with Claude AI (Anthropic) &nbsp;&#183;&nbsp; Data: 2010&ndash;2025
+  </div>
+
+</div><!-- end About panel -->
+
+</div><!-- shell -->
+<script>
+const YRS=[2010,2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023,2024,2025];
+const POP_C=['#1565a8','#639922','#8a3090'];
+const VMT_C=['#b8760a','#c0392b','#5c3a9e'];
+const PCLS=['p1','p2','p3'];
+
+const POP={
+"United States":[309321666,311556874,313830990,316059947,318386421,320738994,323071755,325147121,327167434,328239523,331578104,332100166,333996304,336755052,340003797,341784857],
+"Alabama":[4785401,4800745,4817528,4833996,4849377,4858979,4863300,4874747,4887871,4903185,5032962,5050058,5076868,5117850,5163055,5193088],
+"Alaska":[714015,722718,730443,737068,736879,738432,741894,739700,737438,731545,732906,734590,733659,734654,736537,737270],
+"Arizona":[6411999,6472867,6556236,6634997,6731484,6828065,6945452,7048530,7158024,7278717,7186647,7274022,7370065,7452073,7556424,7623818],
+"Arkansas":[2921964,2940667,2952164,2958663,2966912,2977944,2988248,3004279,3009733,3017804,3014399,3027127,3047429,3069856,3096080,3114791],
+"California":[37319502,37638369,37999878,38431393,38802500,39032444,39296476,39536653,39461588,39437610,39527808,39152927,39125347,39181667,39364774,39355309],
+"Colorado":[5047349,5116796,5189458,5272086,5355856,5449261,5530105,5600620,5691287,5758736,5786873,5814368,5853355,5912240,5988502,6012561],
+"Connecticut":[3579345,3588283,3591765,3594547,3594188,3591765,3587685,3588114,3571520,3565287,3579643,3607765,3618707,3641369,3674449,3688496],
+"Delaware":[899816,907381,917092,926454,935614,944076,952698,961939,967679,973764,991890,1005130,1020279,1035354,1050123,1059952],
+"District of Columbia":[605226,620472,634924,647484,658893,672228,684498,694906,701547,705749,670958,669637,674501,682559,691310,693645],
+"Florida":[18845537,19057542,19317568,19552860,19888741,20244914,20656589,21044557,21244317,21477737,21591325,21836698,22413989,22929248,23265838,23462518],
+"Georgia":[9711810,9812226,9919000,9994759,10097343,10199398,10313620,10427576,10519475,10617423,10732595,10793038,10929992,11063669,11204208,11302748],
+"Hawaii":[1363945,1374810,1384054,1395187,1415872,1426521,1428683,1420491,1420593,1415872,1451130,1446909,1437812,1434950,1434952,1432820],
+"Idaho":[1567652,1583910,1595590,1612136,1633532,1652828,1682210,1716943,1750536,1787065,1849328,1904855,1942951,1970497,2000872,2029733],
+"Illinois":[12839895,12858725,12867944,12882135,12880580,12858725,12842882,12802023,12723071,12671821,12795348,12703354,12609577,12633389,12703033,12719141],
+"Indiana":[6490432,6516922,6537782,6569386,6596855,6619680,6634007,6659672,6695497,6732219,6790290,6814223,6841491,6881373,6934754,6973333],
+"Iowa":[3050745,3062309,3075039,3093526,3107126,3121997,3130869,3147389,3148618,3155070,3191081,3199037,3201890,3214739,3230454,3238387],
+"Kansas":[2858190,2869548,2885398,2893212,2904021,2906721,2907461,2913123,2911510,2913805,2938274,2938966,2938034,2949749,2965252,2977220],
+"Kentucky":[4347321,4369356,4386346,4395295,4413457,4424611,4436974,4449601,4461153,4467673,4508271,4508348,4521238,4549953,4584046,4606864],
+"Louisiana":[4545581,4574836,4604744,4629284,4645670,4670724,4681666,4684333,4659690,4645184,4652145,4628595,4600892,4598777,4614878,4618189],
+"Maine":[1327629,1328590,1328188,1328459,1330158,1327975,1330232,1335492,1338404,1344212,1364546,1379009,1391585,1401992,1408438,1414874],
+"Maryland":[5787193,5843225,5888683,5936137,5981834,6003435,6016447,6035802,6042718,6045680,6178387,6176035,6183257,6204927,6245314,6265347],
+"Massachusetts":[6567681,6611923,6647884,6713428,6745408,6794002,6823721,6859819,6882635,6949503,6985320,6996721,7025465,7073479,7138560,7154084],
+"Michigan":[9877510,9876187,9877968,9897264,9916246,9900571,9928301,9962311,9986857,9986857,10072294,10042362,10043906,10062124,10099962,10127884],
+"Minnesota":[5310828,5348562,5379646,5420177,5453109,5482435,5519952,5557469,5611179,5639632,5710562,5714055,5727565,5752998,5797405,5830405],
+"Mississippi":[2970548,2978240,2986015,2991207,2994341,2990040,2988762,2984345,2981020,2976149,2958385,2947603,2941237,2942470,2950172,2954160],
+"Missouri":[5996118,6010054,6023469,6047065,6073440,6076204,6093000,6113532,6126452,6137428,6155074,6172551,6179285,6205956,6243544,6270541],
+"Montana":[990697,998199,1005141,1014699,1023579,1032073,1041732,1050493,1062330,1068778,1087156,1106416,1121533,1130612,1137557,1144694],
+"Nebraska":[1829542,1842641,1855525,1868516,1883970,1893921,1904760,1920467,1925614,1934408,1963318,1964697,1972595,1988172,2005591,2018006],
+"Nevada":[2702405,2705875,2757034,2790136,2839099,2890845,2940058,2998039,3027341,3080156,3116851,3148472,3177672,3211077,3253543,3282188],
+"New Hampshire":[1316614,1320101,1322017,1323459,1326813,1330608,1334795,1342795,1348613,1371246,1378752,1387907,1396647,1401530,1408518,1415342],
+"New Jersey":[8802707,8831643,8864590,8902571,8938175,8958013,8978416,8997888,9006011,9032872,9270476,9266509,9298402,9395315,9506354,9548215],
+"New Mexico":[2064552,2077919,2085109,2086058,2089291,2084117,2081702,2088070,2096829,2096640,2118446,2117300,2112859,2119349,2126774,2125498],
+"New York":[19399878,19521827,19570261,19625919,19673174,19747183,19836286,19845911,19530351,19336776,20122262,19835345,19713025,19786543,20001419,20002427],
+"North Carolina":[9559533,9651380,9748364,9848917,9938449,10035186,10146788,10273419,10390149,10488084,10450215,10565503,10705768,10871849,11052061,11197968],
+"North Dakota":[674715,684698,701974,724206,739482,756717,754066,755459,760077,762062,779612,777977,780191,787071,793387,799358],
+"Ohio":[11539336,11541936,11544663,11567082,11613423,11605090,11614373,11659650,11676341,11689442,11798534,11761443,11764950,11808390,11860621,11900510],
+"Oklahoma":[3759944,3791521,3815770,3850450,3878051,3909500,3930864,3931399,3940235,3954821,3965243,3992760,4025327,4062716,4097758,4123288],
+"Oregon":[3838048,3867639,3899353,3930065,3970239,4028977,4093465,4142776,4190713,4217737,4243544,4254691,4245964,4250392,4265324,4273586],
+"Pennsylvania":[12710472,12742518,12763536,12773801,12787209,12791904,12784227,12787209,12802503,12801989,12995576,13016628,12984655,13009406,13045848,13059432],
+"Rhode Island":[1053959,1053661,1054632,1054636,1053661,1053661,1059639,1059361,1058287,1059361,1096487,1097381,1098275,1101183,1110415,1114521],
+"South Carolina":[4636361,4673617,4723417,4775251,4829926,4894834,4960017,5024369,5083748,5148714,5131992,5194346,5288957,5390798,5490316,5570274],
+"South Dakota":[816165,824082,833354,843190,853175,858469,865454,872868,878698,884659,887808,896303,909156,917739,927110,935094],
+"Tennessee":[6355311,6398362,6453898,6508479,6549352,6600299,6651194,6714610,6771631,6833174,6927736,6966687,7063325,7153029,7251291,7315076],
+"Texas":[25241971,25645629,26059203,26505637,26956958,27429639,27914614,28295273,28628666,29087428,29237895,29572672,30118002,30719247,31318578,31709821],
+"Utah":[2775332,2816124,2855287,2902663,2942902,2990632,3051217,3101833,3153550,3205958,3283970,3339874,3393928,3449259,3502983,3538904],
+"Vermont":[625879,626562,625579,626562,625741,625879,623354,624594,624594,623354,642965,647238,647614,647722,646521,644663],
+"Virginia":[8023699,8096604,8186285,8260405,8326289,8382993,8411808,8470020,8518572,8535519,8637303,8660007,8681038,8732034,8819642,8880107],
+"Washington":[6742830,6819732,6897012,7007975,7100000,7169967,7294936,7423362,7523869,7614893,7726812,7744316,7786828,7838655,7927958,8001020],
+"West Virginia":[1854146,1855413,1856301,1854972,1852994,1845491,1831102,1817048,1806860,1792147,1791670,1785921,1774003,1770036,1767402,1766147],
+"Wisconsin":[5690475,5711767,5726398,5742713,5757564,5771337,5778708,5795483,5818049,5822434,5897371,5882128,5903472,5930350,5957168,5972787],
+"Wyoming":[564487,567758,576626,582658,583200,584354,584886,577737,577601,578759,577669,579662,581742,584666,586722,588753]
+};
+
+const VMT={
+"United States":[2967266,2950402,2968570,2988280,3025805,3095373,3174408,3212347,3240327,3261772,2904003,3124973,3192629,3175432,3294031,3310969],
+"Alabama":[67498,67192,67726,68117,68984,70513,71206,71503,71965,72290,64920,70434,71631,72289,72904,73098],
+"Alaska":[5044,5162,5148,5166,5233,5268,5313,5292,5388,5441,4826,5220,5478,5617,5503,5799],
+"Arizona":[59440,58825,59690,61271,62846,65433,67955,70025,71818,73690,65189,73215,76159,75297,70451,76978],
+"Arkansas":[33680,33547,33877,34018,34421,35285,35741,36043,36598,37054,33260,37268,38530,39101,39372,39967],
+"California":[323124,321938,325097,328745,334581,340108,339486,341329,340523,341042,301791,308533,315244,316612,325959,325566],
+"Colorado":[45266,45012,46015,46697,47819,49533,51012,52437,53613,54498,48032,52944,53946,54654,55068,55574],
+"Connecticut":[30885,30443,30574,30667,30899,31503,31751,31840,31768,31693,27817,30083,30640,30503,30947,31586],
+"Delaware":[9276,9201,9281,9323,9485,9661,9701,9797,9843,9876,8714,9497,9711,9718,9937,9529],
+"District of Columbia":[3773,3708,3727,3704,3715,3820,3827,3825,3780,3699,3073,3285,3407,3481,3539,3326],
+"Florida":[196044,196507,200199,203804,209716,218044,223903,228537,232234,236499,208716,228698,233851,239188,249474,243993],
+"Georgia":[102718,102419,103975,105528,107877,112174,115482,117752,119625,121452,107640,118397,121203,126339,122216,127085],
+"Hawaii":[10249,10241,10369,10428,10583,10895,11012,10952,10829,10780,8774,9779,10298,10435,10647,10569],
+"Idaho":[14774,14678,15034,15350,15722,16410,17109,17641,18169,18716,16986,18969,19597,19718,20046,20704],
+"Illinois":[105069,103784,104471,104730,105327,107270,107832,107905,108150,107952,95079,102413,103598,102871,104290,104448],
+"Indiana":[76430,75760,76638,77203,78428,80655,82101,83098,84049,84891,75584,83206,84936,85209,88231,87371],
+"Iowa":[29823,29556,29906,30177,30647,31400,31878,32245,32607,32895,29458,32494,33073,33254,33817,33619],
+"Kansas":[28729,28471,28770,28928,29321,30019,30407,30683,30978,31189,27879,30747,31274,31828,31670,32166],
+"Kentucky":[46091,45677,46128,46571,47436,48723,49510,49929,50411,50761,45243,48893,49461,48993,49168,49037],
+"Louisiana":[47393,47142,47675,48004,48699,50007,50656,51028,51448,51895,46203,52785,53905,55560,55109,55768],
+"Maine":[13813,13632,13744,13807,13973,14266,14428,14530,14624,14693,13188,14316,14685,14888,15161,15075],
+"Maryland":[55264,54778,55396,55669,56303,57611,58155,58531,58771,58951,51934,56186,57221,55560,57049,57341],
+"Massachusetts":[56834,56171,56666,57054,57793,59278,60047,60521,60887,61226,53756,58661,60553,61151,62013,61651],
+"Michigan":[93820,92920,93995,94783,96527,99345,101025,101872,102555,103024,91499,98988,99898,99386,99661,99885],
+"Minnesota":[53396,52919,53479,53987,54822,56358,57212,57706,58165,58551,51776,56767,57841,58199,59181,59303],
+"Mississippi":[36740,36480,36831,37028,37538,38540,38979,39257,39619,39943,35706,39993,40600,40938,41554,41859],
+"Missouri":[71020,70468,71166,71680,72741,74665,75677,76320,77013,77519,68963,77199,79140,79984,81807,82898],
+"Montana":[11008,10950,11110,11231,11484,11859,12108,12299,12503,12622,11261,12661,13295,13579,13865,13817],
+"Nebraska":[19749,19581,19816,19969,20297,20862,21173,21407,21651,21823,19494,21455,21791,21793,21900,21910],
+"Nevada":[25085,24978,25461,25855,26499,27423,28145,28726,28868,28901,24836,27532,27991,28066,28433,28865],
+"New Hampshire":[13226,13081,13196,13264,13445,13742,13895,14011,14097,14158,12487,13456,13726,13790,13854,13669],
+"New Jersey":[74049,73271,73921,74266,75149,76972,77788,78300,78618,78876,69328,75601,77573,78062,79460,78938],
+"New Mexico":[25769,25570,25850,26030,26445,27105,27476,27752,28056,28239,25163,27534,27988,28141,28645,28771],
+"New York":[121459,120214,121137,121810,123224,126204,127691,128434,129075,129587,114152,117874,118831,119238,120869,120935],
+"North Carolina":[98074,97381,98534,99477,101261,104438,107012,108787,110224,111583,99440,115462,123700,127611,131008,124922],
+"North Dakota":[7871,7877,8091,8268,8558,8879,8867,8865,8943,9002,8108,9147,9576,9684,10030,10129],
+"Ohio":[109558,108490,109400,110139,111765,114604,116264,117074,117766,118272,104857,113720,115279,115398,116036,114113],
+"Oklahoma":[41938,41664,42150,42479,43175,44376,44959,45355,45810,46145,41136,44930,45699,46069,46456,47479],
+"Oregon":[34031,33740,34104,34459,35112,36193,37024,37509,37967,38257,34000,37054,37457,37162,37399,37876],
+"Pennsylvania":[91637,90726,91527,92182,93554,95968,97315,98038,98671,99097,87610,94614,95816,95218,95194,100510],
+"Rhode Island":[7648,7559,7605,7639,7735,7921,8008,8062,8100,8127,7134,7619,7744,7701,7656,7793],
+"South Carolina":[52834,52503,53120,53581,54583,56368,57615,58408,59079,59651,53183,59355,61019,61404,62042,62643],
+"South Dakota":[8502,8458,8577,8674,8854,9127,9297,9413,9526,9609,8631,9681,9973,10068,10450,10566],
+"Tennessee":[71064,70517,71377,72052,73431,75683,77270,78172,79027,79648,70893,76947,77682,77818,78904,83518],
+"Texas":[248218,248695,252604,256340,263117,271963,278697,282614,285893,288826,255477,282741,295000,298672,308461,311652],
+"Utah":[26004,25989,26507,27075,27830,29011,30141,31014,31890,32616,29208,33049,34682,35416,36160,36410],
+"Vermont":[7336,7244,7284,7316,7397,7556,7620,7662,7693,7715,6847,7218,7124,7132,7208,7152],
+"Virginia":[82248,81574,82387,83038,84343,86773,88270,89142,89879,90425,79939,86413,88044,87787,88511,89394],
+"Washington":[59026,58700,59592,60397,61706,63754,65464,66411,67178,67814,60082,63918,61278,59973,60555,60751],
+"West Virginia":[16856,16691,16820,16923,17166,17611,17824,17975,18154,18266,16259,17187,17093,16851,17214,16277],
+"Wisconsin":[60289,59716,60310,60814,61784,63520,64521,65089,65673,66064,58659,64823,66985,67582,69226,68856],
+"Wyoming":[9021,8987,9148,9272,9508,9825,9902,9872,9881,9840,8634,9219,9341,9438,9720,9828]
+};
+
+const GEOS=Object.keys(POP);
+const STATE_GEOS=GEOS.filter(g=>g!=="United States");
+
+function vmtpc(geo,i){return VMT[geo][i]&&POP[geo][i]?(VMT[geo][i]*1e6/POP[geo][i]):0;}
+
+let tabs=[
+  {geos:["United States"],charts:{}},
+  {geos:["United States"],charts:{}},
+  {},
+  {}
+];
+let mapModes={1:0,2:0,3:0};
+
+function getR(t){
+  const s=parseInt(document.getElementById('t'+(t+1)+'s').value);
+  const e=parseInt(document.getElementById('t'+(t+1)+'e').value);
+  return [Math.min(s,e),Math.max(s,e)];
+}
+
+function syncRange(t){
+  const s=parseInt(document.getElementById('t'+(t+1)+'s').value);
+  const e=parseInt(document.getElementById('t'+(t+1)+'e').value);
+  document.getElementById('t'+(t+1)+'sl').textContent=YRS[Math.min(s,e)];
+  document.getElementById('t'+(t+1)+'el').textContent=YRS[Math.max(s,e)];
+  if(t===0)renderTab1();
+  if(t===1)renderTab2();
+  if(t===2)renderTab3();
+  if(t===3)renderTab4();
+}
+
+function populateSels(){
+  [0,1].forEach(t=>{
+    const sel=document.getElementById('t'+(t+1)+'geo');
+    GEOS.forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;sel.appendChild(o);});
+  });
+}
+
+function addGeo(t){
+  const sel=document.getElementById('t'+(t+1)+'geo');
+  const geo=sel.value; if(!geo)return;
+  if(tabs[t].geos.includes(geo))return;
+  if(tabs[t].geos.length>=3)return;
+  tabs[t].geos.push(geo);
+  renderPills(t);
+  if(t===0)renderTab1();
+  if(t===1)renderTab2();
+}
+
+function removeGeo(t,geo){
+  tabs[t].geos=tabs[t].geos.filter(g=>g!==geo);
+  if(!tabs[t].geos.length)tabs[t].geos=["United States"];
+  renderPills(t);
+  if(t===0)renderTab1();
+  if(t===1)renderTab2();
+}
+
+function renderPills(t){
+  const c=document.getElementById('t'+(t+1)+'pills');
+  c.innerHTML=tabs[t].geos.map((g,i)=>`<span class="gpill ${PCLS[i]}">${g}<span class="rx" onclick="removeGeo(${t},'${g.replace(/'/g,"\\'")}')">×</span></span>`).join('');
+  document.getElementById('t'+(t+1)+'add').disabled=tabs[t].geos.length>=3;
+}
+
+let chartReg={};
+function dc(id){if(chartReg[id]){chartReg[id].destroy();delete chartReg[id];}}
+function nc(id,cfg){dc(id);chartReg[id]=new Chart(document.getElementById(id),cfg);return chartReg[id];}
+
+function renderLeg(id,geos,mode){
+  const el=document.getElementById(id);
+  el.innerHTML=geos.map((g,i)=>{
+    const pc=POP_C[i],vc=VMT_C[i];
+    if(mode==='raw'){
+      return `<span class="leg-item"><span class="leg-sq" style="background:${pc}"></span>${g} Pop.</span>`+
+             `<span class="leg-item"><span style="display:inline-block;width:18px;border-top:2px dashed ${vc}"></span>${g} VMT</span>`;
+    }
+    if(mode==='pc'){
+      return `<span class="leg-item"><span class="leg-sq" style="background:${vc}"></span>${g} VMT/cap</span>`+
+             `<span class="leg-item"><span style="display:inline-block;width:18px;border-top:2px dashed ${pc}"></span>${g} Pop.</span>`;
+    }
+    return `<span class="leg-item"><span class="leg-sq" style="background:${pc}"></span>${g} Pop.</span>`+
+           `<span class="leg-item"><span style="display:inline-block;width:18px;border-top:2px dashed ${vc}"></span>${g} VMT/cap</span>`;
+  }).join('');
+}
+
+// ---- TAB 1 ----
+function renderTab1(){
+  const [s,e]=getR(0);
+  const lbls=YRS.slice(s,e+1).map(String);
+  const geos=tabs[0].geos;
+  renderLeg('t1leg',geos,'raw');
+  const ds1=[],ds2=[];
+  geos.forEach((g,i)=>{
+    const pc=POP_C[i],vc=VMT_C[i];
+    ds1.push({label:g+' Pop',data:YRS.slice(s,e+1).map((_,j)=>POP[g][s+j]),borderColor:pc,borderWidth:2.5,pointRadius:3,tension:.3,yAxisID:'yP',borderDash:[]});
+    ds1.push({label:g+' VMT',data:YRS.slice(s,e+1).map((_,j)=>VMT[g][s+j]),borderColor:vc,borderWidth:2.5,pointRadius:3,tension:.3,yAxisID:'yV',borderDash:[5,3]});
+    const pb=POP[g][s],vb=VMT[g][s];
+    ds2.push({label:g+' Pop',data:YRS.slice(s,e+1).map((_,j)=>+(POP[g][s+j]/pb).toFixed(4)),borderColor:pc,borderWidth:2.5,pointRadius:3,tension:.3,borderDash:[]});
+    ds2.push({label:g+' VMT',data:YRS.slice(s,e+1).map((_,j)=>+(VMT[g][s+j]/vb).toFixed(4)),borderColor:vc,borderWidth:2.5,pointRadius:3,tension:.3,borderDash:[5,3]});
+  });
+  nc('c1raw',{type:'line',data:{labels:lbls,datasets:ds1},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.dataset.yAxisID==='yP'?ctx.dataset.label+': '+ctx.raw.toLocaleString():ctx.dataset.label+': '+ctx.raw.toLocaleString()+'M mi'}}},scales:{x:{grid:{color:'#e8eaf0'},ticks:{color:'#6b7a90',font:{size:11}}},yP:{position:'left',title:{display:true,text:'Population',color:'#1565a8',font:{size:11}},ticks:{color:'#1565a8',font:{size:10},callback:v=>v>=1e6?(v/1e6).toFixed(1)+'M':v.toLocaleString()},grid:{color:'#e8edf5'}},yV:{position:'right',title:{display:true,text:'VMT (millions)',color:'#b8760a',font:{size:11}},ticks:{color:'#b8760a',font:{size:10},callback:v=>v.toLocaleString()},grid:{drawOnChartArea:false}}}}});
+  nc('c1idx',{type:'line',data:{labels:lbls,datasets:ds2},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+ctx.raw.toFixed(3)+'x'}}},scales:{x:{grid:{color:'#e8eaf0'},ticks:{color:'#6b7a90',font:{size:11}}},y:{title:{display:true,text:'Index (base=1.0)',color:'#3d4a5c',font:{size:11}},ticks:{color:'#3d4a5c',font:{size:10},callback:v=>v.toFixed(2)+'x'},grid:{color:'#e8eaf0'}}}}});
+  // highlights
+  const h1=geos.map((g,i)=>{const pc=((POP[g][e]-POP[g][s])/POP[g][s]*100).toFixed(1);const vc=((VMT[g][e]-VMT[g][s])/VMT[g][s]*100).toFixed(1);const cls=['','teal','gold'][i];return `<div class="hl ${cls}"><div class="hl-lab">${g}</div>Pop ${pc>=0?'▲':'▼'}${Math.abs(pc)}% &nbsp;·&nbsp; VMT ${vc>=0?'▲':'▼'}${Math.abs(vc)}% &nbsp;·&nbsp; ${YRS[s]}–${YRS[e]}</div>`;}).join('');
+  document.getElementById('t1hl').innerHTML=h1;
+  const h2=geos.map((g,i)=>{const pi=(POP[g][e]/POP[g][s]).toFixed(3);const vi=(VMT[g][e]/VMT[g][s]).toFixed(3);const cls=['','teal','gold'][i];const note=pi>vi?'Pop grew faster than VMT':vi>pi?'VMT grew faster than pop':'Equal growth';return `<div class="hl ${cls}"><div class="hl-lab">${g}</div>Pop index: ${pi}x &nbsp;·&nbsp; VMT index: ${vi}x &nbsp;·&nbsp; <strong>${note}</strong></div>`;}).join('');
+  document.getElementById('t1idxhl').innerHTML=h2;
+}
+
+// ---- TAB 2 ----
+function renderTab2(){
+  const [s,e]=getR(1);
+  const lbls=YRS.slice(s,e+1).map(String);
+  const geos=tabs[1].geos;
+  renderLeg('t2leg',geos,'pc');
+  const ds1=[],ds2=[];
+  geos.forEach((g,i)=>{
+    const pc=POP_C[i],vc=VMT_C[i];
+    ds1.push({label:g+' VMT/cap',data:YRS.slice(s,e+1).map((_,j)=>Math.round(vmtpc(g,s+j))),borderColor:vc,borderWidth:2.5,pointRadius:3,tension:.3,yAxisID:'yPC',borderDash:[]});
+    ds1.push({label:g+' Pop',data:YRS.slice(s,e+1).map((_,j)=>POP[g][s+j]),borderColor:pc,borderWidth:2.5,pointRadius:3,tension:.3,yAxisID:'yP',borderDash:[5,3]});
+    const vcb=vmtpc(g,s),pb=POP[g][s];
+    ds2.push({label:g+' VMT/cap',data:YRS.slice(s,e+1).map((_,j)=>+(vmtpc(g,s+j)/vcb).toFixed(4)),borderColor:vc,borderWidth:2.5,pointRadius:3,tension:.3,borderDash:[]});
+    ds2.push({label:g+' Pop',data:YRS.slice(s,e+1).map((_,j)=>+(POP[g][s+j]/pb).toFixed(4)),borderColor:pc,borderWidth:2.5,pointRadius:3,tension:.3,borderDash:[5,3]});
+  });
+  nc('c2raw',{type:'line',data:{labels:lbls,datasets:ds1},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.dataset.yAxisID==='yPC'?ctx.dataset.label+': '+Math.round(ctx.raw).toLocaleString()+' mi/person':ctx.dataset.label+': '+ctx.raw.toLocaleString()}}},scales:{x:{grid:{color:'#e8eaf0'},ticks:{color:'#6b7a90',font:{size:11}}},yPC:{position:'left',title:{display:true,text:'VMT per capita (miles/person)',color:'#b8760a',font:{size:11}},ticks:{color:'#b8760a',font:{size:10},callback:v=>v.toLocaleString()},grid:{color:'#fdf5e0'}},yP:{position:'right',title:{display:true,text:'Population',color:'#1565a8',font:{size:11}},ticks:{color:'#1565a8',font:{size:10},callback:v=>v>=1e6?(v/1e6).toFixed(1)+'M':v.toLocaleString()},grid:{drawOnChartArea:false}}}}});
+  nc('c2idx',{type:'line',data:{labels:lbls,datasets:ds2},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+ctx.raw.toFixed(3)+'x'}}},scales:{x:{grid:{color:'#e8eaf0'},ticks:{color:'#6b7a90',font:{size:11}}},y:{title:{display:true,text:'Index (base=1.0)',color:'#3d4a5c',font:{size:11}},ticks:{color:'#3d4a5c',font:{size:10},callback:v=>v.toFixed(2)+'x'},grid:{color:'#e8eaf0'}}}}});
+  const h1=geos.map((g,i)=>{
+    const pcc=((POP[g][e]-POP[g][s])/POP[g][s]*100).toFixed(1);
+    const vpc=((vmtpc(g,e)-vmtpc(g,s))/vmtpc(g,s)*100).toFixed(1);
+    const v24=Math.round(vmtpc(g,e)).toLocaleString();
+    const cls=['','teal','gold'][i];
+    return `<div class="hl ${cls}"><div class="hl-lab">${g}</div>VMT/cap ${vpc>=0?'▲':'▼'}${Math.abs(vpc)}% &nbsp;·&nbsp; Pop ${pcc>=0?'▲':'▼'}${Math.abs(pcc)}% &nbsp;·&nbsp; ${YRS[e]} VMT/cap: ${v24} mi/person</div>`;
+  }).join('');
+  document.getElementById('t2hl').innerHTML=h1;
+  const h2=geos.map((g,i)=>{
+    const pi=(POP[g][e]/POP[g][s]).toFixed(3);
+    const vi=(vmtpc(g,e)/vmtpc(g,s)).toFixed(3);
+    const cls=['','teal','gold'][i];
+    const note=vi>pi?'Driving per person increased relative to population growth':vi<pi?'Driving per person fell relative to population growth':'Parallel growth';
+    return `<div class="hl ${cls}"><div class="hl-lab">${g} — indexed</div>VMT/cap: ${vi}x &nbsp;·&nbsp; Pop: ${pi}x &nbsp;·&nbsp; ${note}</div>`;
+  }).join('');
+  document.getElementById('t2idxhl').innerHTML=h2;
+}
+
+// ---- TAB 3 ----
+function renderTab3(){
+  const [s,e]=getR(2);
+  const sort=document.getElementById('t3sort').value;
+  const filt=document.getElementById('t3filt').value;
+
+  // Read checkboxes — ensure at least one is always checked
+  const showPop = document.getElementById('chk_pop').checked;
+  const showVmt = document.getElementById('chk_vmt').checked;
+  const showVpc = document.getElementById('chk_vpc').checked;
+  const nMetrics = [showPop,showVmt,showVpc].filter(Boolean).length;
+
+  // Guard: if all unchecked, re-check the one that was just unchecked (no-op render)
+  if(nMetrics === 0){
+    document.getElementById('chk_pop').checked = true;
+    return renderTab3();
+  }
+
+  // Update note
+  const noteEl = document.getElementById('t3_metric_note');
+  if(noteEl) noteEl.textContent = nMetrics===1 ? 'Showing 1 metric' : `Showing ${nMetrics} metrics`;
+
+  let rows=STATE_GEOS.map(g=>({
+    g,
+    pop:((POP[g][e]-POP[g][s])/POP[g][s]*100),
+    vmt:((VMT[g][e]-VMT[g][s])/VMT[g][s]*100),
+    vpc:((vmtpc(g,e)-vmtpc(g,s))/vmtpc(g,s)*100)
+  }));
+
+  if(sort==='pop')rows.sort((a,b)=>b.pop-a.pop);
+  else if(sort==='vmt')rows.sort((a,b)=>b.vmt-a.vmt);
+  else if(sort==='vmtpc')rows.sort((a,b)=>b.vpc-a.vpc);
+  else rows.sort((a,b)=>a.g.localeCompare(b.g));
+  if(filt==='top15pop'){rows.sort((a,b)=>b.pop-a.pop);rows=rows.slice(0,15);}
+  else if(filt==='bot15pop'){rows.sort((a,b)=>a.pop-b.pop);rows=rows.slice(0,15);}
+  else if(filt==='top15vmt'){rows.sort((a,b)=>b.vmt-a.vmt);rows=rows.slice(0,15);}
+
+  // Dynamic height: px-per-row scales with number of metrics shown
+  // 1 metric → 22px/row, 2 metrics → 30px/row, 3 metrics → 40px/row
+  const pxPerRow = nMetrics===1 ? 22 : nMetrics===2 ? 30 : 40;
+  const h = Math.max(300, rows.length * pxPerRow + 80);
+  document.getElementById('t3barwrap').style.height = h + 'px';
+
+  // Build datasets based on checkboxes
+  const datasets = [];
+  if(showPop) datasets.push({label:'Population % Δ',data:rows.map(r=>+r.pop.toFixed(2)),backgroundColor:'#1565a8',borderWidth:0,borderRadius:2});
+  if(showVmt) datasets.push({label:'VMT % Δ',data:rows.map(r=>+r.vmt.toFixed(2)),backgroundColor:'#b8760a',borderWidth:0,borderRadius:2});
+  if(showVpc) datasets.push({label:'VMT/cap % Δ',data:rows.map(r=>+r.vpc.toFixed(2)),backgroundColor:'#0a7c5c',borderWidth:0,borderRadius:2});
+
+  dc('c3bar');
+  const c3canvas = document.getElementById('c3bar');
+  chartReg['c3bar']=new Chart(c3canvas,{
+    type:'bar',
+    data:{labels:rows.map(r=>r.g), datasets},
+    options:{
+      indexAxis:'y',
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:false},tooltip:{enabled:false}},
+      scales:{
+        x:{title:{display:true,text:'% change',color:'#3d4a5c',font:{size:11}},
+           ticks:{color:'#6b7a90',font:{size:10},callback:v=>v+'%'},
+           grid:{color:'#e8eaf0'}},
+        y:{ticks:{color:'#121a28',font:{size: nMetrics===1?11:10}},grid:{display:false}}
+      }
+    }
+  });
+
+  // Custom tooltip — shows only selected metrics
+  let c3tt = document.getElementById('c3tooltip');
+  if(!c3tt){
+    c3tt = document.createElement('div');
+    c3tt.id = 'c3tooltip';
+    c3tt.style.cssText = 'position:fixed;background:#0f1e35;color:white;padding:10px 14px;border-radius:8px;font-size:12px;pointer-events:none;display:none;z-index:9999;line-height:1.8;min-width:210px;box-shadow:0 4px 16px rgba(0,0,0,.35);';
+    document.body.appendChild(c3tt);
+  }
+  c3canvas.onmousemove = function(evt){
+    const chart = chartReg['c3bar'];
+    if(!chart) return;
+    const rect = c3canvas.getBoundingClientRect();
+    const y = evt.clientY - rect.top;
+    const ca = chart.chartArea;
+    if(y < ca.top || y > ca.bottom){ c3tt.style.display='none'; return; }
+    const nRows = rows.length;
+    const rowH = (ca.bottom - ca.top) / nRows;
+    const idx = Math.floor((y - ca.top) / rowH);
+    if(idx < 0 || idx >= nRows){ c3tt.style.display='none'; return; }
+    const r = rows[idx];
+    c3tt.style.display = 'block';
+    c3tt.style.left = (evt.clientX + 18) + 'px';
+    c3tt.style.top  = (evt.clientY - 10) + 'px';
+    let html = '<div style="font-weight:600;font-size:13px;margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,.25);padding-bottom:5px">' + r.g + '</div>';
+    if(showPop) html += '<div style="display:flex;align-items:center;gap:7px;margin-bottom:2px"><span style="width:10px;height:10px;border-radius:2px;background:#1565a8;display:inline-block;flex-shrink:0"></span><span>Population: <strong>'+(r.pop>=0?'+':'')+r.pop.toFixed(2)+'%</strong></span></div>';
+    if(showVmt) html += '<div style="display:flex;align-items:center;gap:7px;margin-bottom:2px"><span style="width:10px;height:10px;border-radius:2px;background:#b8760a;display:inline-block;flex-shrink:0"></span><span>VMT: <strong>'+(r.vmt>=0?'+':'')+r.vmt.toFixed(2)+'%</strong></span></div>';
+    if(showVpc) html += '<div style="display:flex;align-items:center;gap:7px"><span style="width:10px;height:10px;border-radius:2px;background:#0a7c5c;display:inline-block;flex-shrink:0"></span><span>VMT per capita: <strong>'+(r.vpc>=0?'+':'')+r.vpc.toFixed(2)+'%</strong></span></div>';
+    c3tt.innerHTML = html;
+  };
+  c3canvas.onmouseleave = function(){ c3tt.style.display='none'; };
+
+  const top=rows.reduce((a,b)=>b.pop>a.pop?b:a);
+  const bot=rows.reduce((a,b)=>b.pop<a.pop?b:a);
+  const topv=rows.reduce((a,b)=>b.vmt>a.vmt?b:a);
+  const neg=rows.filter(r=>r.pop<0).length;
+  document.getElementById('t3hl').innerHTML=`
+    <div class="hl"><div class="hl-lab">Fastest growing</div>${top.g} — pop +${top.pop.toFixed(1)}%</div>
+    <div class="hl teal"><div class="hl-lab">VMT leader</div>${topv.g} — VMT +${topv.vmt.toFixed(1)}%</div>
+    <div class="hl gold"><div class="hl-lab">Population loss</div>${bot.g} — pop ${bot.pop.toFixed(1)}% · ${neg} states lost population</div>`;
+  renderMap(3);
+}
+
+// ---- TAB 4: SCATTER ----
+// 7-category classification
+// Non-positive-growth categories:
+//   POP_DOWN_VMT_UP  : pop-, vmt+  → RED
+//   POP_UP_VMT_DOWN  : pop+, vmt-  → GREEN
+//   BOTH_DOWN        : pop-, vmt-  → BLACK
+// Positive-growth (both up) split by medians:
+//   ABOVE_BOTH       : pop>medP & vmt>medV  → BLUE
+//   VMT_HIGH_POP_LOW : vmt>medV & pop<=medP → BROWN
+//   POP_HIGH_VMT_LOW : pop>medP & vmt<=medV → PURPLE
+//   BELOW_BOTH       : pop<=medP & vmt<=medV → ORANGE
+
+const Q_COLOR={
+  POP_DOWN_VMT_UP :'#c0392b',
+  POP_UP_VMT_DOWN :'#27ae60',
+  BOTH_DOWN       :'#222222',
+  ABOVE_BOTH      :'#1565a8',
+  VMT_HIGH_POP_LOW:'#8B4513',
+  POP_HIGH_VMT_LOW:'#7b2d9e',
+  BELOW_BOTH      :'#e67e22'
+};
+const Q_LABEL={
+  POP_DOWN_VMT_UP :'Pop ↓ / VMT ↑ (Red)',
+  POP_UP_VMT_DOWN :'Pop ↑ / VMT ↓ (Green)',
+  BOTH_DOWN       :'Both declining (Black)',
+  ABOVE_BOTH      :'Both high-growth (Blue)',
+  VMT_HIGH_POP_LOW:'VMT high / Pop moderate (Brown)',
+  POP_HIGH_VMT_LOW:'Pop high / VMT moderate (Purple)',
+  BELOW_BOTH      :'Both moderate-growth (Orange)'
+};
+
+function median(arr){
+  const s=[...arr].sort((a,b)=>a-b);
+  const m=Math.floor(s.length/2);
+  return s.length%2?s[m]:(s[m-1]+s[m])/2;
+}
+
+function classifyRows(rows){
+  // Separate positive-growth states
+  const bothUp=rows.filter(r=>r.pc>0&&r.vc>0);
+  const medP=bothUp.length?median(bothUp.map(r=>r.pc)):0;
+  const medV=bothUp.length?median(bothUp.map(r=>r.vc)):0;
+  return {rows:rows.map(r=>{
+    let cat;
+    if(r.pc<=0&&r.vc>0)       cat='POP_DOWN_VMT_UP';
+    else if(r.pc>0&&r.vc<=0)  cat='POP_UP_VMT_DOWN';
+    else if(r.pc<=0&&r.vc<=0) cat='BOTH_DOWN';
+    else if(r.pc>medP&&r.vc>medV)   cat='ABOVE_BOTH';
+    else if(r.vc>medV&&r.pc<=medP)  cat='VMT_HIGH_POP_LOW';
+    else if(r.pc>medP&&r.vc<=medV)  cat='POP_HIGH_VMT_LOW';
+    else                             cat='BELOW_BOTH';
+    return {...r,cat};
+  }),medP,medV};
+}
+
+function quadrant(pc,vc){// legacy shim kept for map compat
+  if(pc>0&&vc>0)return 'Q1';
+  if(pc<=0&&vc>0)return 'Q2';
+  if(pc<=0&&vc<=0)return 'Q3';
+  return 'Q4';
+}
+
+function renderTab4(){
+  const [s,e]=getR(3);
+  const filt=document.getElementById('t4filt').value;
+  let baseRows=STATE_GEOS.map(g=>{
+    const pc=(POP[g][e]-POP[g][s])/POP[g][s]*100;
+    const vc=(VMT[g][e]-VMT[g][s])/VMT[g][s]*100;
+    return {g,pc,vc};
+  });
+  if(filt==='top15vmt'){const tmp=[...baseRows].sort((a,b)=>b.vc-a.vc);const names=new Set(tmp.slice(0,15).map(r=>r.g));baseRows=baseRows.filter(r=>names.has(r.g));}
+  else if(filt==='top15pop'){const tmp=[...baseRows].sort((a,b)=>b.pc-a.pc);const names=new Set(tmp.slice(0,15).map(r=>r.g));baseRows=baseRows.filter(r=>names.has(r.g));}
+  else if(filt==='bot15pop'){const tmp=[...baseRows].sort((a,b)=>a.pc-b.pc);const names=new Set(tmp.slice(0,15).map(r=>r.g));baseRows=baseRows.filter(r=>names.has(r.g));}
+
+  // Classify with 7 categories
+  const {rows,medP,medV}=classifyRows(baseRows);
+
+  // Store current classification globally for map
+  window._scatterRows=rows;
+  window._scatterMedP=medP;
+  window._scatterMedV=medV;
+  window._scatterSE=[s,e];
+
+  // Highlights
+  const bothUp=rows.filter(r=>r.pc>0&&r.vc>0).length;
+  const vmtDown=rows.filter(r=>r.vc<=0).length;
+  const topVmt=rows.reduce((a,b)=>b.vc>a.vc?b:a);
+  const topPop=rows.reduce((a,b)=>b.pc>a.pc?b:a);
+  document.getElementById('t4hl').innerHTML=
+    '<div class="hl"><div class="hl-lab">VMT growth leader</div>'+topVmt.g+': VMT +'+ topVmt.vc.toFixed(1)+'% · Pop '+(topVmt.pc>=0?'+':'')+topVmt.pc.toFixed(1)+'%</div>'+
+    '<div class="hl teal"><div class="hl-lab">Population growth leader</div>'+topPop.g+': Pop +'+topPop.pc.toFixed(1)+'% · VMT '+(topPop.vc>=0?'+':'')+topPop.vc.toFixed(1)+'%</div>'+
+    '<div class="hl navy"><div class="hl-lab">Summary (shown states)</div>'+bothUp+' states with both pop &amp; VMT growing · '+vmtDown+' states with VMT flat or declining · Medians (both-up subset): Pop +'+medP.toFixed(1)+'% / VMT +'+medV.toFixed(1)+'%</div>';
+
+  // Build scatter datasets by category
+  const byCat={};
+  Object.keys(Q_COLOR).forEach(k=>{byCat[k]=[];});
+  rows.forEach(r=>byCat[r.cat].push({x:+r.pc.toFixed(3),y:+r.vc.toFixed(3),label:r.g,cat:r.cat}));
+  const datasets=Object.keys(Q_COLOR).map(cat=>({
+    label:Q_LABEL[cat],
+    data:byCat[cat],
+    backgroundColor:Q_COLOR[cat]+(cat==='BOTH_DOWN'?'dd':'bb'),
+    borderColor:Q_COLOR[cat],
+    borderWidth:1.5,
+    pointRadius:7,
+    pointHoverRadius:10
+  }));
+
+  dc('c4scatter');
+  const canvas=document.getElementById('c4scatter');
+  chartReg['c4scatter']=new Chart(canvas,{
+    type:'scatter',
+    data:{datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{enabled:false}},
+      scales:{
+        x:{title:{display:true,text:'Population % Change',color:'#3d4a5c',font:{size:12,weight:'500'}},
+           ticks:{color:'#6b7a90',font:{size:10},callback:v=>v+'%'},
+           grid:{color:'#e8eaf0'},
+           afterDataLimits(scale){const pad=Math.max(1,Math.abs(scale.max-scale.min)*0.08);scale.min-=pad;scale.max+=pad;}
+        },
+        y:{title:{display:true,text:'VMT % Change',color:'#3d4a5c',font:{size:12,weight:'500'}},
+           ticks:{color:'#6b7a90',font:{size:10},callback:v=>v+'%'},
+           grid:{color:'#e8eaf0'},
+           afterDataLimits(scale){const pad=Math.max(1,Math.abs(scale.max-scale.min)*0.08);scale.min-=pad;scale.max+=pad;}
+        }
+      }
+    }
+  });
+
+  // Custom scatter tooltip
+  const stt=document.getElementById('scattertt');
+  canvas.onmousemove=function(evt){
+    const chart=chartReg['c4scatter'];
+    if(!chart)return;
+    const pts=chart.getElementsAtEventForMode(evt,'nearest',{intersect:true,radius:12},false);
+    if(!pts.length){stt.style.display='none';return;}
+    const pt=pts[0];
+    const ds=chart.data.datasets[pt.datasetIndex];
+    const d=ds.data[pt.index];
+    const clr=ds.borderColor==='#222222'?'#888':ds.borderColor;
+    stt.style.display='block';
+    stt.style.left=(evt.clientX+16)+'px';
+    stt.style.top=(evt.clientY-10)+'px';
+    stt.innerHTML=
+      '<div style="font-weight:600;font-size:13px;margin-bottom:5px;border-bottom:1px solid rgba(255,255,255,.25);padding-bottom:4px;display:flex;align-items:center;gap:7px">'+
+      '<span style="width:10px;height:10px;border-radius:50%;background:'+clr+';display:inline-block;flex-shrink:0"></span>'+d.label+'</div>'+
+      '<div>Population Δ: <strong>'+(d.x>=0?'+':'')+d.x.toFixed(2)+'%</strong></div>'+
+      '<div>VMT Δ: <strong>'+(d.y>=0?'+':'')+d.y.toFixed(2)+'%</strong></div>'+
+      '<div style="margin-top:5px;font-size:11px;color:rgba(255,255,255,.6)">'+ds.label+'</div>';
+  };
+  canvas.onmouseleave=function(){stt.style.display='none';};
+
+  renderMap(4);
+}
+
+// ---- MAPS ----
+let mapTopoCache=null;
+const STATE_NAME_MAP={"Alabama":"Alabama","Alaska":"Alaska","Arizona":"Arizona","Arkansas":"Arkansas","California":"California","Colorado":"Colorado","Connecticut":"Connecticut","Delaware":"Delaware","Florida":"Florida","Georgia":"Georgia","Hawaii":"Hawaii","Idaho":"Idaho","Illinois":"Illinois","Indiana":"Indiana","Iowa":"Iowa","Kansas":"Kansas","Kentucky":"Kentucky","Louisiana":"Louisiana","Maine":"Maine","Maryland":"Maryland","Massachusetts":"Massachusetts","Michigan":"Michigan","Minnesota":"Minnesota","Mississippi":"Mississippi","Missouri":"Missouri","Montana":"Montana","Nebraska":"Nebraska","Nevada":"Nevada","New Hampshire":"New Hampshire","New Jersey":"New Jersey","New Mexico":"New Mexico","New York":"New York","North Carolina":"North Carolina","North Dakota":"North Dakota","Ohio":"Ohio","Oklahoma":"Oklahoma","Oregon":"Oregon","Pennsylvania":"Pennsylvania","Rhode Island":"Rhode Island","South Carolina":"South Carolina","South Dakota":"South Dakota","Tennessee":"Tennessee","Texas":"Texas","Utah":"Utah","Vermont":"Vermont","Virginia":"Virginia","Washington":"Washington","West Virginia":"West Virginia","Wisconsin":"Wisconsin","Wyoming":"Wyoming"};
+
+function setMapMode(mapId,mode){
+  mapModes[mapId]=mode;
+  for(let i=0;i<5;i++){const b=document.getElementById('m'+mapId+'b'+i);if(b)b.classList.toggle('active',i===mode);}
+  renderMap(mapId);
+}
+
+function renderMap(mapId){
+  const container=document.getElementById('map'+mapId);
+  if(!container)return;
+  if(!mapTopoCache){
+    d3.json('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json').then(us=>{
+      mapTopoCache=us;
+      drawMap(mapId,container,us);
+    });
+  } else {
+    drawMap(mapId,container,mapTopoCache);
+  }
+}
+
+function getMapData(mapId){
+  const mode=mapModes[mapId]||0;
+  if(mapId===1){
+    const yi=parseInt(document.getElementById('m1yr').value);
+    document.getElementById('m1yrl').textContent=YRS[yi];
+    if(mode===0){
+      const vals={};STATE_GEOS.forEach(g=>{vals[g]=POP[g][yi];});
+      return {vals,label:'Population',fmt:v=>(v/1e6).toFixed(2)+'M',scheme:d3.schemeBlues[7]};
+    } else {
+      const vals={};STATE_GEOS.forEach(g=>{vals[g]=VMT[g][yi];});
+      return {vals,label:'VMT (M miles)',fmt:v=>v.toLocaleString(),scheme:d3.schemeOranges[7]};
+    }
+  }
+  if(mapId===2){
+    const yi=parseInt(document.getElementById('m2yr').value);
+    document.getElementById('m2yrl').textContent=YRS[yi];
+    if(mode===0){
+      const vals={};STATE_GEOS.forEach(g=>{vals[g]=Math.round(vmtpc(g,yi));});
+      return {vals,label:'Miles/person',fmt:v=>v.toLocaleString(),scheme:d3.schemeOranges[7]};
+    } else {
+      const vals={};STATE_GEOS.forEach(g=>{vals[g]=POP[g][yi];});
+      return {vals,label:'Population',fmt:v=>(v/1e6).toFixed(2)+'M',scheme:d3.schemeBlues[7]};
+    }
+  }
+  if(mapId===3){
+    const [s,e]=getR(2);
+    const mode3=mapModes[3]||0;
+    if(mode3===0){const vals={};STATE_GEOS.forEach(g=>{vals[g]=(POP[g][e]-POP[g][s])/POP[g][s]*100;});return {vals,label:'Pop % Δ',fmt:v=>v.toFixed(1)+'%',diverging:true};}
+    if(mode3===1){const vals={};STATE_GEOS.forEach(g=>{vals[g]=(VMT[g][e]-VMT[g][s])/VMT[g][s]*100;});return {vals,label:'VMT % Δ',fmt:v=>v.toFixed(1)+'%',diverging:true};}
+    const vals={};STATE_GEOS.forEach(g=>{vals[g]=(vmtpc(g,e)-vmtpc(g,s))/vmtpc(g,s)*100;});
+    return {vals,label:'VMT/cap % Δ',fmt:v=>v.toFixed(1)+'%',diverging:true};
+  }
+  if(mapId===4){
+    // Use pre-computed scatter classification if available (includes medians)
+    const allRows=STATE_GEOS.map(g=>{
+      const [s2,e2]=window._scatterSE||getR(3);
+      const pc=(POP[g][e2]-POP[g][s2])/POP[g][s2]*100;
+      const vc=(VMT[g][e2]-VMT[g][s2])/VMT[g][s2]*100;
+      return {g,pc,vc};
+    });
+    const {rows:classified}=classifyRows(allRows);
+    const catMap={};classified.forEach(r=>{catMap[r.g]=r;});
+    const vals={};const qvals={};
+    STATE_GEOS.forEach(g=>{
+      const r=catMap[g]||{pc:0,vc:0,cat:'BELOW_BOTH'};
+      vals[g]=r.pc;
+      qvals[g]=r.cat;
+    });
+    return {vals,qvals,label:'Category',fmt:(v,g)=>{
+      const r=catMap[g];
+      if(!r)return 'N/A';
+      return Q_LABEL[r.cat]+' | Pop '+(r.pc>=0?'+':'')+r.pc.toFixed(1)+'% / VMT '+(r.vc>=0?'+':'')+r.vc.toFixed(1)+'%';
+    },quadrantMap:true};
+  }
+}
+
+function drawMap(mapId,container,us){
+  const mapData=getMapData(mapId);
+  const {vals,label,fmt,scheme,diverging,ratio,quadrantMap,qvals}=mapData;
+  container.querySelectorAll('svg').forEach(s=>s.remove());
+  const w=container.clientWidth||800,h=container.clientHeight||480;
+  const svg=d3.select(container).append('svg').attr('width',w).attr('height',h).attr('viewBox',`0 0 ${w} ${h}`);
+  const features=topojson.feature(us,us.objects.states).features;
+  const scale=Math.min(w*1.1, h*1.8);
+  const proj=d3.geoAlbersUsa().scale(scale).translate([w/2, h/2]);
+  const path=d3.geoPath(proj);
+  const allVals=Object.values(vals).filter(v=>isFinite(v));
+  const mn=d3.min(allVals),mx=d3.max(allVals);
+  let colorFn;
+  if(diverging){
+    const ext=Math.max(Math.abs(mn),Math.abs(mx));
+    colorFn=d3.scaleDiverging([-ext,0,ext],d3.interpolateRdYlGn);
+  } else if(ratio){
+    colorFn=d3.scaleDiverging([0,1,Math.max(mx,2)],d3.interpolateRdYlGn);
+  } else if(quadrantMap){
+    colorFn=null;// handled per-state below
+  } else {
+    const sc=scheme||d3.schemeBlues[7];
+    colorFn=d3.scaleQuantize([mn,mx],sc);
+  }
+  const tt=document.getElementById('tt'+mapId);
+  const g=svg.append('g');
+  g.selectAll('path').data(features).join('path')
+    .attr('d',path)
+    .attr('fill',d=>{const n=d.properties.name;if(quadrantMap&&qvals){return qvals[n]?Q_COLOR[qvals[n]]:'#d8dce4';}return vals[n]!=null&&isFinite(vals[n])?colorFn(vals[n]):'#d8dce4';})
+    .attr('stroke','#fff').attr('stroke-width',0.6)
+    .on('mousemove',(evt,d)=>{
+      const n=d.properties.name;
+      const v=vals[n];
+      tt.style.display='block';
+      tt.style.left=(evt.offsetX+12)+'px';
+      tt.style.top=(evt.offsetY-10)+'px';
+      tt.innerHTML=`<strong>${n}</strong><br>${label}: ${v!=null?(typeof fmt==='function'?fmt(v,n):'N/A'):'N/A'}`;
+    })
+    .on('mouseleave',()=>{tt.style.display='none';});
+  const zoom=d3.zoom().scaleExtent([0.5,12]).on('zoom',(evt)=>{g.attr('transform',evt.transform);});
+  svg.call(zoom);
+  svg.on('dblclick.zoom',null);
+  // reset button
+  container.querySelectorAll('.map-reset-btn').forEach(b=>b.remove());
+  const resetBtn=document.createElement('button');
+  resetBtn.className='map-reset-btn';
+  resetBtn.textContent='⟳ Reset';
+  resetBtn.style.cssText='position:absolute;top:10px;right:10px;background:white;border:1px solid #d8dce4;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;color:#3d4a5c;font-weight:500;z-index:10;';
+  resetBtn.onclick=()=>svg.transition().duration(400).call(zoom.transform,d3.zoomIdentity);
+  container.appendChild(resetBtn);
+  // zoom hint
+  container.querySelectorAll('.map-hint').forEach(b=>b.remove());
+  const hint=document.createElement('div');
+  hint.className='map-hint';
+  hint.textContent='Scroll to zoom · Click & drag to pan · Double-click to zoom in';
+  hint.style.cssText='position:absolute;bottom:44px;right:10px;font-size:10px;color:#6b7a90;background:rgba(255,255,255,0.85);padding:3px 8px;border-radius:4px;pointer-events:none;';
+  container.appendChild(hint);
+  svg.on('dblclick',(evt)=>{
+    const [mx,my]=d3.pointer(evt);
+    svg.transition().duration(400).call(zoom.transform,d3.zoomIdentity.translate(w/2-mx*2,h/2-my*2).scale(2));
+  });
+  // legend
+  container.querySelectorAll('.map-legend').forEach(e=>e.remove());
+  const leg=document.createElement('div');
+  leg.className='map-legend';
+  if(quadrantMap){
+    leg.innerHTML='<div class="map-legend-title">Category</div>'+
+      Object.keys(Q_COLOR).map(q=>'<div style="display:flex;align-items:center;gap:5px;margin-top:3px"><span style="width:10px;height:10px;border-radius:50%;background:'+Q_COLOR[q]+';display:inline-block;flex-shrink:0;border:1px solid rgba(0,0,0,.15)"></span><span style="font-size:10px;color:#3d4a5c">'+Q_LABEL[q]+'</span></div>').join('');
+  } else {
+    leg.innerHTML=`<div class="map-legend-title">${label}</div>
+      <div class="map-leg-bar">
+        <div class="map-leg-grad" style="background:${diverging||ratio?'linear-gradient(to right,#d7191c,#ffffbf,#1a9641)':scheme?'linear-gradient(to right,'+scheme[0]+','+scheme[6]+')':'linear-gradient(to right,#deebf7,#08306b)'}"></div>
+      </div>
+      <div class="map-leg-labels"><span>${fmt(mn)}</span><span>${fmt(mx)}</span></div>`;
+  }
+  container.appendChild(leg);
+}
+
+// ---- SWITCH TABS ----
+function switchTab(i){
+  document.querySelectorAll('.tbtn').forEach((b,j)=>b.classList.toggle('active',i===j));
+  document.querySelectorAll('.panel').forEach((p,j)=>p.classList.toggle('active',i===j));
+  if(i===1){renderTab1();renderMap(1);}
+  if(i===2){renderTab2();renderMap(2);}
+  if(i===3){renderTab3();}
+  if(i===4){renderTab4();}
+}
+
+function downloadExcel(type){
+  // Build a CSV and trigger download as a fallback since we can't serve binary xlsx from a static page.
+  // We generate a proper CSV that Excel opens natively.
+  const data = type==='pop' ? POP : VMT;
+  const label = type==='pop' ? 'Population' : 'VMT (millions of miles)';
+  const source = type==='pop'
+    ? 'Source: U.S. Census Bureau Population Estimates Program (Vintage 2019 and Vintage 2024). July 1 annual estimates.'
+    : 'Source: FHWA Highway Statistics Table VM-2. Annual vehicle miles traveled all roads and streets.';
+  let csv = label + ' by State 2010-2024\n' + source + '\n\n';
+  csv += 'State,' + YRS.join(',') + '\n';
+  Object.keys(data).forEach(g=>{
+    csv += '"'+g+'",' + data[g].join(',') + '\n';
+  });
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = type==='pop' ? 'us_state_population_2010_2025.csv' : 'us_state_vmt_2010_2025.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ---- INIT ----
+populateSels();
+renderPills(0);
+renderPills(1);
+// Home tab shown first — data tabs render on first visit only
+
+document.getElementById('m1yr').addEventListener('input',()=>renderMap(1));
+document.getElementById('m2yr').addEventListener('input',()=>renderMap(2));
+window.addEventListener('resize',()=>{
+  [1,2,3,4].forEach(id=>{const c=document.getElementById('map'+id);if(c&&mapTopoCache)drawMap(id,c,mapTopoCache);});
+});
+</script>
+</body>
+</html>
